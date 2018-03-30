@@ -153,7 +153,7 @@ def createModel(features, labels, mode):
         activation=tf.nn.relu)
     
     #avg_pool1 =tf.layers.average_pooling2d(inputs = conv1, pool_size=[4,4], strides=[4,4]) 
-    max_pool1 = tf.layers.max_pooling2d(inputs = conv1, pool_size=[4,4], strides=[4,4])
+    max_pool1 = tf.layers.max_pooling2d(inputs = conv1, pool_size=[4,4], strides=4)
     
     #pool1 = tf.concat([avg_pool1, max_pool1], -1)
     #HEIGHT/4*WIDTH/4*128
@@ -166,7 +166,7 @@ def createModel(features, labels, mode):
     
     #avg_pool2 =tf.layers.average_pooling2d(inputs = conv2, pool_size=[4,4], strides=[4,4])
     #HEIGHT/16*WIDTH/16*128
-    max_pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[4,4], strides=[4,4])
+    max_pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[4,4], strides=4)
     
     #pool2 = tf.concat([avg_pool2, max_pool2], -1)
     
@@ -176,7 +176,7 @@ def createModel(features, labels, mode):
     
     dropout = tf.layers.dropout(inputs=dense, rate=0.2, training=mode == tf.estimator.ModeKeys.TRAIN)
     
-    preds = tf.layers.dense(inputs=dropout, units = int( (IMAGE_HEIGHT/BOX_HEIGHT) * (IMAGE_WIDTH/BOX_WIDTH) * 5 ) )
+    preds = tf.layers.dense(inputs=dropout, units = int( (IMAGE_HEIGHT/BOX_HEIGHT) * (IMAGE_WIDTH/BOX_WIDTH) * 5 ), activation=tf.nn.sigmoid )
     
     predictions = {
         "preds": preds,
@@ -190,7 +190,20 @@ def createModel(features, labels, mode):
     print(labels.shape)
     print("logit shape:")
     print(preds.shape)
-    loss = tf.losses.mean_squared_error(labels=labels, predictions=preds)
+    #loss = tf.losses.mean_squared_error(labels=labels, predictions=preds)
+    #How are the preds reshaped.
+    reshapedPreds = tf.reshape(preds, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
+    reshapedLabels = tf.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
+    #Cost calculation taken from https://stackoverflow.com/questions/48938120/make-tensorflow-ignore-values
+    #This excludes bounding boxes that are 
+    mask = tf.tile(reshapedLabels[:, :, :, 0:1], [1, 1, 1, 5]) #repeating the first item 5 times
+    mask_first = tf.tile(reshapedLabels[:, :, :, 0:1], [1, 1, 1, 1]) #repeating the first item 1 time
+
+    mask_of_ones = tf.ones(tf.shape(mask_first))
+
+    full_mask = tf.concat([tf.to_float(mask_of_ones), tf.to_float(mask[:, :, :, 1:])], 3)
+
+    loss = tf.reduce_mean(tf.square(tf.multiply(full_mask, tf.to_float(tf.subtract(reshapedLabels, reshapedPreds, name="loss")))))
     
     if mode == tf.estimator.ModeKeys.TRAIN:
         optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
@@ -218,12 +231,6 @@ def trainModel(unused_argv):
     boxColumns = int(IMAGE_WIDTH/BOX_WIDTH)
     for filename in os.listdir(testURL):
         print(filename)
-        if skip2 == True :
-            break
-        elif skip==True:
-            skip2=True
-        else:
-            skip=True
         imdir = testURL+filename+'/'+imagesDir
         img = imread(imdir+os.listdir(imdir)[0])
         allTestDims.append(img.shape)
@@ -234,12 +241,6 @@ def trainModel(unused_argv):
     skip2 = False
     for filename in os.listdir(dataURL):
         print(filename)
-        if skip2 == True :
-            break
-        elif skip==True:
-            skip2=True
-        else:
-            skip=True
         imdir = dataURL+filename+'/'+imagesDir
         immasks = dataURL+filename+'/'+masksDir
         #imagefile = imageio.imread(imdir+os.listdir(imdir)[0])
