@@ -217,7 +217,101 @@ def createModel(features, labels, mode):
         labels=labels, predictions=predictions["logits"])}
     return tf.estimator.EstimatorSpec(
         mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
-    
+
+
+def processResults(predictionsForOneImage):
+    #number of rows
+    refBoxRows = IMAGE_HEIGHT/BOX_HEIGHT
+    #number of columns
+    refBoxColumns = IMAGE_WIDTH/BOX_WIDTH
+    boxes = []
+    for i in range(0, int(len(predictionsForOneImage)/5)):
+        boxIndex = i*5
+        boxFlag = predictionsForOneImage[boxIndex]
+        
+        if boxFlag > 0.5:
+            boxVerLoc = predictionsForOneImage[boxIndex+1]
+            boxHorLoc = predictionsForOneImage[boxIndex+2]
+            boxHeight = predictionsForOneImage[boxIndex+3]
+            boxWidth = predictionsForOneImage[boxIndex+4]
+            
+            row = int(i/refBoxColumns)
+            column = int(i % refBoxColumns)
+            
+            #Get the actual coordinates and height/width in 256*256 version of image.
+            verCoord = ((row +boxVerLoc) * BOX_HEIGHT)
+            horCoord = ((column+boxHorLoc) * BOX_WIDTH)
+            height = boxHeight * IMAGE_HEIGHT
+            width = boxWidth * IMAGE_WIDTH
+            
+            #Making sure that the boundaries are within the image.
+            if verCoord < 0.0:
+                verCoord = 0.0
+            if horCoord < 0.0:
+                horCoord = 0.0
+            if (verCoord - (height / 2.0)) < 0.0:
+                height = verCoord * 2.0
+            if (horCoord - (width / 2.0)) < 0.0:
+                width = horCoord * 2.0
+            if (verCoord + (height / 2.0)) > 255.0:
+                height = (255.0 - verCoord) * 2.0
+            if (horCoord + (width / 2.0)) > 255.0:
+                width = (255.0 - horCoord) * 2.0
+            
+            boxVals = []
+            boxVals.append(verCoord)
+            boxVals.append(horCoord)
+            boxVals.append(height)
+            boxVals.append(width)
+            boxes.append(boxVals)
+            
+    return boxes
+
+def generateOutput(imgPreds, testDims):
+    imgStrs = []
+    for i in range(0, len(imgPreds)):
+        img = imgPreds[i]
+        dims = testDims[i]
+        
+        boxResults = processResults(img)
+        
+        verDim = dims[0]
+        horDim = dims[1]
+        
+        horMultiple = horDim/IMAGE_WIDTH
+        verMultiple = verDim/IMAGE_HEIGHT
+        
+        runLength = ''
+        for j in range(0, len(boxResults)):
+            box = boxResults[j]
+            verCoord = int(box[0] * verMultiple)
+            horCoord = int(box[1] * horMultiple)
+            height = int(box[2] * verMultiple)
+            width = int(box[3] * horMultiple)
+            
+            leftSide = horCoord - int(width/2)
+            rightSide = horCoord + int(width/2)
+            top = verCoord - int(height/2)
+            bottom = verCoord + int(height/2)
+            
+            print("left side")
+            print(leftSide)
+            print("right side")
+            print(rightSide)
+            print("top")
+            print(top)
+            print("bottom")
+            print(bottom)
+            
+            for h in range(top, bottom):
+                left = int(h * horDim) + leftSide
+                if runLength != '':
+                    runLength = runLength + ' '
+                runLength += str(left) + ' ' + str(width)
+        imgStrs.append(runLength)
+
+    return imgStrs
+ 
 def trainModel(unused_argv):
     allImages = []
     allLabels = []
@@ -325,14 +419,18 @@ def trainModel(unused_argv):
         steps=20000,
         hooks=[logging_hook])
     
-    #test_input_fn = tf.estimator.inputs.numpy_input_fn(
-     #   x={"x": np.asarray(allTestImages).astype(np.float32)},
-      #     batch_size=1,
-       #    num_epochs=None,
-        #   shuffle=False)
+    test_input_fn = tf.estimator.inputs.numpy_input_fn(
+       x={"x": np.asarray(allTestImages).astype(np.float32)},
+          batch_size=1,
+          num_epochs=None,
+       shuffle=False)
     
-    #preds = nucleus_detector.predict(test_input_fn, hooks=logging_hook, checkpoint_path=None)
-    #print(preds)
+    preds = nucleus_detector.predict(test_input_fn, hooks=logging_hook, checkpoint_path=None)
+    print(preds)
+    
+    imgStrs = generateOutput(preds, allTestDims)
+    
+    
     
    # eval_input_fn = tf.estimator.inputs.numpy_input_fn(
     #    x={"x": testData},
@@ -346,7 +444,49 @@ def trainModel(unused_argv):
     
 
 def main(unused_argv):
-    trainModel(unused_argv)
+    #trainModel(unused_argv)
+    img = [1.0, 0.4, 0.3, 0.2, 0.1,
+           1.0, 0.5, 0.5, 0.1, 0.1,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.1, 0.2, 0.15, 0.3,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.2, 0.2, 0.1, 0.2,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.5, 0.5, 0.1, 0.1,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.15, 0.2, 0.15, 0.3,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.4, 0.3, 0.1, 0.2,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0
+           ]
+    imgs = []
+    imgs.append(img)
+    testDims = []
+    testDims.append((1024, 512))
+    print(processResults(img))
+    print(generateOutput(imgs, testDims))
+    
+    
     
     
     
