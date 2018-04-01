@@ -267,11 +267,12 @@ def processResults(predictionsForOneImage):
             
     return boxes
 
-def generateOutput(imgPreds, testDims):
+def generateOutput(imgNames, imgPreds, testDims):
     imgStrs = []
     for i in range(0, len(imgPreds)):
         img = imgPreds[i]
         dims = testDims[i]
+        name = imgNames[i]
         
         boxResults = processResults(img)
         
@@ -281,8 +282,8 @@ def generateOutput(imgPreds, testDims):
         horMultiple = horDim/IMAGE_WIDTH
         verMultiple = verDim/IMAGE_HEIGHT
         
-        runLength = ''
         for j in range(0, len(boxResults)):
+            runLength = ''
             box = boxResults[j]
             verCoord = int(box[0] * verMultiple)
             horCoord = int(box[1] * horMultiple)
@@ -303,12 +304,13 @@ def generateOutput(imgPreds, testDims):
             print("bottom")
             print(bottom)
             
-            for h in range(top, bottom):
-                left = int(h * horDim) + leftSide
-                if runLength != '':
-                    runLength = runLength + ' '
-                runLength += str(left) + ' ' + str(width)
-        imgStrs.append(runLength)
+            for w in range(leftSide, rightSide):
+                topPoint = int(w * verDim) + top
+                pairing = ' ' +str(topPoint) + ' ' + str(height)
+                runLength += pairing
+            if len(runLength) > 0:
+                runLength = runLength[1:]
+            imgStrs.append([name, runLength])
 
     return imgStrs
  
@@ -318,6 +320,7 @@ def trainModel(unused_argv):
     alldims = []
     allTestDims = []
     allTestImages = []
+    allTestImageNames = []
     first = True
     skip = False
     skip2 = False
@@ -328,6 +331,7 @@ def trainModel(unused_argv):
         imdir = testURL+filename+'/'+imagesDir
         img = imread(imdir+os.listdir(imdir)[0])
         allTestDims.append(img.shape)
+        allTestImageNames.append(os.listdir(imdir)[0])
         img = compress(img)
         allTestImages.append(img)
     
@@ -484,7 +488,7 @@ def main(unused_argv):
     testDims = []
     testDims.append((1024, 512))
     print(processResults(img))
-    print(generateOutput(imgs, testDims))
+    print(generateOutput(['ImageName'], imgs, testDims))
     
     
     
