@@ -282,6 +282,8 @@ def generateOutput(imgNames, imgPreds, testDims):
         horMultiple = horDim/IMAGE_WIDTH
         verMultiple = verDim/IMAGE_HEIGHT
         
+        traversedPixels = []
+        #Process each mask using the boxes.
         for j in range(0, len(boxResults)):
             runLength = ''
             box = boxResults[j]
@@ -295,25 +297,60 @@ def generateOutput(imgNames, imgPreds, testDims):
             top = verCoord - int(height/2)
             bottom = verCoord + int(height/2)
             
-            print("left side")
-            print(leftSide)
-            print("right side")
-            print(rightSide)
-            print("top")
-            print(top)
-            print("bottom")
-            print(bottom)
-            
+            newAdditions = []
+            #Encode the pixels for each mask
             for w in range(leftSide, rightSide):
                 topPoint = int(w * verDim) + top
-                pairing = ' ' +str(topPoint) + ' ' + str(height)
-                runLength += pairing
-            if len(runLength) > 0:
+                bottomPoint = topPoint + height -1
+                pair = [topPoint, bottomPoint]
+                addSegment(pair, traversedPixels, newAdditions)
+            for a in range(0, len(newAdditions)):
+                newAdd = newAdditions[a]
+                newTop = newAdd[0]
+                newBottom = newAdd[1]
+                height = newBottom - newTop + 1
+                runLength += ' ' + str(newTop) + ' ' + str(height)
+                                        
+            if len(runLength) > 1:
                 runLength = runLength[1:]
             imgStrs.append([name, runLength])
 
     return imgStrs
- 
+
+#Given top and bottom of segment, returns all segmentations.
+def addSegment(segmentPair, traversedPixels, newAdditions):
+    topPoint = segmentPair[0]
+    bottomPoint = segmentPair[1]
+    if topPoint > bottomPoint:
+        return
+    for t in range(0, len(traversedPixels)):
+        pixelPair = traversedPixels[t]
+        tTop = pixelPair[0]
+        tBottom = pixelPair[1]
+        #Changing the top and bottom point to avoid duplicating pixels.
+        #If top point is among pixels already masked, move it beyond the already masked segment.
+        if (topPoint > tTop and topPoint < tBottom):
+            topPoint = tBottom + 1
+            aSeg = [topPoint, bottomPoint]
+            addSegment(aSeg, traversedPixels, newAdditions)
+            return
+        #If the bottom point is among pixels already masked, move it before the already masked segment.
+        if (bottomPoint > tTop and bottomPoint < tBottom):
+            bottomPoint = tTop - 1
+            aSeg = [topPoint, bottomPoint]
+            addSegment(aSeg, traversedPixels, newAdditions)
+            return
+        if (topPoint < tTop and bottomPoint > tBottom):
+            aBottom = tTop - 1
+            aTop = tBottom + 1
+            seg1 = [aTop, bottomPoint]
+            seg2 = [topPoint, aBottom]
+            addSegment(seg1, traversedPixels, newAdditions)
+            addSegment(seg2, traversedPixels, newAdditions)
+            return
+    newAdditions.append([topPoint, bottomPoint]) 
+    traversedPixels.append([topPoint, bottomPoint])       
+
 def trainModel(unused_argv):
     allImages = []
     allLabels = []
@@ -483,12 +520,48 @@ def main(unused_argv):
            0.0, 0.0, 0.0, 0.0, 0.0,
            0.0, 0.0, 0.0, 0.0, 0.0
            ]
+    img2 = [1.0, 0.4, 0.3, 0.2, 0.1,
+           1.0, 0.5, 0.5, 0.1, 0.1,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.1, 0.2, 0.15, 0.3,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.2, 0.2, 0.1, 0.2,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.5, 0.5, 0.1, 0.1,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.15, 0.2, 0.15, 0.3,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           1.0, 0.4, 0.3, 0.1, 0.2,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0,
+           0.0, 0.0, 0.0, 0.0, 0.0
+           ]
     imgs = []
     imgs.append(img)
+    imgs.append(img2)
     testDims = []
     testDims.append((1024, 512))
+    testDims.append((1024, 512))
     print(processResults(img))
-    print(generateOutput(['ImageName'], imgs, testDims))
+    print(generateOutput(['ImageName', 'ImageName2'], imgs, testDims))
     
     
     
