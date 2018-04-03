@@ -274,7 +274,8 @@ def generateOutput(imgNames, imgPreds, testDims):
         name = imgNames[i]
         
         boxResults = processResults(img)
-        
+        print(name)
+        print(len(boxResults))
         verDim = dims[0]
         horDim = dims[1]
         
@@ -317,10 +318,10 @@ def generateOutput(imgNames, imgPreds, testDims):
     return imgStrs
 
 #Given top and bottom of segment, returns all segmentations.
-def addSegment(segmentPair, traversedPixels, newAdditions):
+def addSegment(segmentPair, traversedPixels, newAdditions, recurse = 0):
     topPoint = segmentPair[0]
     bottomPoint = segmentPair[1]
-    if topPoint > bottomPoint:
+    if topPoint >= bottomPoint:
         return
     for t in range(0, len(traversedPixels)):
         pixelPair = traversedPixels[t]
@@ -328,24 +329,24 @@ def addSegment(segmentPair, traversedPixels, newAdditions):
         tBottom = pixelPair[1]
         #Changing the top and bottom point to avoid duplicating pixels.
         #If top point is among pixels already masked, move it beyond the already masked segment.
-        if (topPoint > tTop and topPoint < tBottom):
+        if (topPoint >= tTop and topPoint <= tBottom):
             topPoint = tBottom + 1
             aSeg = [topPoint, bottomPoint]
-            addSegment(aSeg, traversedPixels, newAdditions)
+            addSegment(aSeg, traversedPixels, newAdditions, recurse+1)
             return
         #If the bottom point is among pixels already masked, move it before the already masked segment.
-        if (bottomPoint > tTop and bottomPoint < tBottom):
+        if (bottomPoint >= tTop and bottomPoint <= tBottom):
             bottomPoint = tTop - 1
             aSeg = [topPoint, bottomPoint]
-            addSegment(aSeg, traversedPixels, newAdditions)
+            addSegment(aSeg, traversedPixels, newAdditions, recurse+1)
             return
-        if (topPoint < tTop and bottomPoint > tBottom):
+        if (topPoint <= tTop and bottomPoint >= tBottom):
             aBottom = tTop - 1
             aTop = tBottom + 1
             seg1 = [aTop, bottomPoint]
             seg2 = [topPoint, aBottom]
-            addSegment(seg1, traversedPixels, newAdditions)
-            addSegment(seg2, traversedPixels, newAdditions)
+            addSegment(seg1, traversedPixels, newAdditions, recurse+1)
+            addSegment(seg2, traversedPixels, newAdditions, recurse+1)
             return
     newAdditions.append([topPoint, bottomPoint]) 
     traversedPixels.append([topPoint, bottomPoint])       
@@ -517,9 +518,20 @@ def test():
     for single_prediction in preds:
         predList.append(list(single_prediction['preds']))
     print("blah")
-    imgStrs = generateOutput(allTestImageNames, predList, allTestDims)
+    imgStrs = generateOutput([allTestImageNames[0]], [predList[0]], [allTestDims[0]])
     print("Hello")
-    print(imgStrs)
+    print(imgStrs[0])
+    names = []
+    encoding = []
+    print(len(imgStrs))
+    for i in range(0, len(imgStrs)):
+        names.append(imgStrs[i][0])
+        encoding.append(imgStrs[i][1])
+    d = {'ImageId' : names, 'EncodedPixels' : encoding}
+    df = pandas.DataFrame(data=d)
+    df.to_csv(path_or_buf = 'submission.csv',
+                             header=True,
+                             index=False)
     #print(imgStrs)
 
 def main(unused_argv):
