@@ -22,6 +22,8 @@ IMAGE_WIDTH = 256
 BOX_HEIGHT = 16
 BOX_WIDTH = 16
 
+CERTAINTY_THRESHOLD = 0.6
+
 def compress(img):
     img = resize(img, (IMAGE_HEIGHT, IMAGE_WIDTH))
     return img
@@ -218,17 +220,23 @@ def createModel(features, labels, mode):
         mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
 
 
-def processResults(predictionsForOneImage):
+def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
     #number of rows
     refBoxRows = IMAGE_HEIGHT/BOX_HEIGHT
     #number of columns
     refBoxColumns = IMAGE_WIDTH/BOX_WIDTH
     boxes = []
+    
+    largest = -1.0
+    largestIndex = 0       
+    
     for i in range(0, int(len(predictionsForOneImage)/5)):
         boxIndex = i*5
         boxFlag = predictionsForOneImage[boxIndex]
-        
-        if boxFlag > 0.5:
+        if boxFlag > largest:
+            largest = boxFlag
+            largestIndex = boxIndex
+        if  (mode == 'MINIMUM_THRESHOLD' and boxFlag > CERTAINTY_THRESHOLD) or (mode == 'LARGEST' and (boxIndex + 6 > len(predictionsForOneImage))) :
             boxVerLoc = predictionsForOneImage[boxIndex+1]
             boxHorLoc = predictionsForOneImage[boxIndex+2]
             boxHeight = predictionsForOneImage[boxIndex+3]
@@ -263,7 +271,7 @@ def processResults(predictionsForOneImage):
             boxVals.append(height)
             boxVals.append(width)
             boxes.append(boxVals)
-            
+    
     return boxes
 
 def generateOutput(imgNames, imgPreds, testDims):
@@ -274,6 +282,8 @@ def generateOutput(imgNames, imgPreds, testDims):
         name = imgNames[i]
         
         boxResults = processResults(img)
+        if len(boxResults) == 0:
+            boxResults = processResults(img, 'LARGEST')
         print(name)
         print(len(boxResults))
         verDim = dims[0]
@@ -283,37 +293,43 @@ def generateOutput(imgNames, imgPreds, testDims):
         verMultiple = verDim/IMAGE_HEIGHT
         
         traversedPixels = []
-        #Process each mask using the boxes.
-        for j in range(0, len(boxResults)):
-            runLength = ''
-            box = boxResults[j]
-            verCoord = int(box[0] * verMultiple)
-            horCoord = int(box[1] * horMultiple)
-            height = int(box[2] * verMultiple)
-            width = int(box[3] * horMultiple)
-            
-            leftSide = horCoord - int(width/2)
-            rightSide = horCoord + int(width/2)
-            top = verCoord - int(height/2)
-            bottom = verCoord + int(height/2)
-            
-            newAdditions = []
-            #Encode the pixels for each mask
-            for w in range(leftSide, rightSide):
-                topPoint = int(w * verDim) + top
-                bottomPoint = topPoint + height -1
-                pair = [topPoint, bottomPoint]
-                addSegment(pair, traversedPixels, newAdditions)
-            for a in range(0, len(newAdditions)):
-                newAdd = newAdditions[a]
-                newTop = newAdd[0]
-                newBottom = newAdd[1]
-                height = newBottom - newTop + 1
-                runLength += ' ' + str(newTop) + ' ' + str(height)
-                                        
-            if len(runLength) > 1:
-                runLength = runLength[1:]
-            imgStrs.append([name, runLength])
+        if (len(boxResults) == 0):
+            imgStrs.append([name, ''])
+        else :
+            #Process each mask using the boxes.
+            for j in range(0, len(boxResults)):
+                runLength = ''
+                box = boxResults[j]
+                verCoord = int(box[0] * verMultiple)
+                horCoord = int(box[1] * horMultiple)
+                height = int(box[2] * verMultiple)
+                width = int(box[3] * horMultiple)
+                
+                leftSide = horCoord - int(width/2)
+                rightSide = horCoord + int(width/2)
+                top = verCoord - int(height/2)
+                bottom = verCoord + int(height/2)
+                
+                newAdditions = []
+                #Encode the pixels for each mask
+                for w in range(leftSide, rightSide):
+                    topPoint = int(w * verDim) + top
+                    bottomPoint = topPoint + height -1
+                    pair = [topPoint, bottomPoint]
+                    addSegment(pair, traversedPixels, newAdditions)
+                for a in range(0, len(newAdditions)):
+                    newAdd = newAdditions[a]
+                    newTop = newAdd[0]
+                    newBottom = newAdd[1]
+                    height = newBottom - newTop + 1
+                    runLength += ' ' + str(newTop) + ' ' + str(height)
+                                            
+                if len(runLength) > 1:
+                    runLength = runLength[1:]
+                elif len(runLength) == 1:
+                    runLength = ''
+                imgStrs.append([name, runLength])
+        
 
     return imgStrs
 
@@ -351,7 +367,7 @@ def addSegment(segmentPair, traversedPixels, newAdditions, recurse = 0):
     newAdditions.append([topPoint, bottomPoint]) 
     traversedPixels.append([topPoint, bottomPoint])       
 
-def trainModel(unused_argv):
+def trainModel(arg):
     allImages = []
     allLabels = []
     alldims = []
@@ -374,104 +390,124 @@ def trainModel(unused_argv):
         img = compress(img)
         allTestImages.append(img)
     
-    for filename in os.listdir(dataURL):
-        print(filename)
-        imdir = dataURL+filename+'/'+imagesDir
-        immasks = dataURL+filename+'/'+masksDir
-        #imagefile = imageio.imread(imdir+os.listdir(imdir)[0])
-        img = imread(imdir+os.listdir(imdir)[0])
-        if (img.shape[2] == 4):
-            img = img[:, :, 0:3]
-        alldims.append(img.shape)
-        img = compress(img)
-        allImages.append(img)
-        masks = []
-        for m in os.listdir(immasks):
-            #mask = imageio.imread(immasks+m)
-            mask = imread(immasks+m)
-            mask = compress(mask)
-            masks.append(mask)
-            if (first):
-                print("mask:"+m)
-                if (len(masks)==1):
-                    print("Testing inside mask loop:")
-                    #print(np.nonzero(imread(immasks+m)))
-                    #animg = Image.fromarray(imread(immasks+m), 'L')
-                    #animg.save(compressionLoc)
-                    
-            #maskindices = np.nonzero(mask)
-            #masks.append(maskindices)
-        
-        masksInfo = maskDetails(masks, first)
-        if (first):
-            print(filename)
-            print("mask info")
-            print(masksInfo[0])
-        trainingLabels = trainLabels(masksInfo)
-        if (first):
-            print("trainingLabels")
-            print(trainingLabels[0])
-        flattenedLabels = trainingLabels.flatten()
-        #lambda l: [lab for rows in trainingLabels for columns in rows for lab in column]
-        if (first):
-            print("flattenedLabels")
-            print(flattenedLabels[0])
-            print(flattenedLabels[1])
-            print(flattenedLabels[2])
-            print(flattenedLabels[3])
-            print(flattenedLabels[4])
-            print("after flattened")
-        print("Flatten")
-        processed = []
-        for n in range(0, len(flattenedLabels)):
-            processed.append(flattenedLabels[n])
-        print(processed)
-        allLabels.append(processed)
-        first=False
-        #Drop the 4th dimension. https://www.kaggle.com/c/data-science-bowl-2018/discussion/47750
-        #Maybe need to keep it later.
-    normalizedImages = normalizeInput(allImages)
-    #allTestImages = normalizeInput(allTestImages)
-    
-    print("normalized image 0:")
-    print(normalizedImages[0])
-    print("normalized image 1:")
-    #print(normalizedImages[1])
-    print("label 0:")
-    print(allLabels[0])
-    print("label 1:")
-    #print(allLabels[1])
-    
     nucleus_detector = tf.estimator.Estimator(
-    model_fn = createModel, model_dir="/tmp/DataScienceBowl")
+        model_fn = createModel, model_dir="/tmp/DataScienceBowl")
     
-    tensors_to_log = {}
-    logging_hook = tf.train.LoggingTensorHook(
-        tensors=tensors_to_log, every_n_iter=50)
-    print("Hello")
-    theLabels = np.asarray(allLabels).astype(np.float32)
-    train_input_fn = tf.estimator.inputs.numpy_input_fn(
-        x={"x": normalizedImages},
-        y=theLabels,
-        batch_size=10,
-        num_epochs=3,
-        shuffle=False)
-    
-    #nucleus_detector.train(
-     #   input_fn=train_input_fn,
-      #  steps=20000,
-       # hooks=[logging_hook])
+    if (arg=='TRAIN'):
+        for filename in os.listdir(dataURL):
+            print(filename)
+            imdir = dataURL+filename+'/'+imagesDir
+            immasks = dataURL+filename+'/'+masksDir
+            #imagefile = imageio.imread(imdir+os.listdir(imdir)[0])
+            img = imread(imdir+os.listdir(imdir)[0])
+            if (img.shape[2] == 4):
+                img = img[:, :, 0:3]
+            alldims.append(img.shape)
+            img = compress(img)
+            allImages.append(img)
+            masks = []
+            for m in os.listdir(immasks):
+                #mask = imageio.imread(immasks+m)
+                mask = imread(immasks+m)
+                mask = compress(mask)
+                masks.append(mask)
+                if (first):
+                    print("mask:"+m)
+                    if (len(masks)==1):
+                        print("Testing inside mask loop:")
+                        #print(np.nonzero(imread(immasks+m)))
+                        #animg = Image.fromarray(imread(immasks+m), 'L')
+                        #animg.save(compressionLoc)
+                        
+                #maskindices = np.nonzero(mask)
+                #masks.append(maskindices)
+            
+            masksInfo = maskDetails(masks, first)
+            if (first):
+                print(filename)
+                print("mask info")
+                print(masksInfo[0])
+            trainingLabels = trainLabels(masksInfo)
+            if (first):
+                print("trainingLabels")
+                print(trainingLabels[0])
+            flattenedLabels = trainingLabels.flatten()
+            #lambda l: [lab for rows in trainingLabels for columns in rows for lab in column]
+            if (first):
+                print("flattenedLabels")
+                print(flattenedLabels[0])
+                print(flattenedLabels[1])
+                print(flattenedLabels[2])
+                print(flattenedLabels[3])
+                print(flattenedLabels[4])
+                print("after flattened")
+            print("Flatten")
+            processed = []
+            for n in range(0, len(flattenedLabels)):
+                processed.append(flattenedLabels[n])
+            print(processed)
+            allLabels.append(processed)
+            first=False
+            #Drop the 4th dimension. https://www.kaggle.com/c/data-science-bowl-2018/discussion/47750
+            #Maybe need to keep it later.
+        normalizedImages = normalizeInput(allImages)
+        #allTestImages = normalizeInput(allTestImages)
+        
+        print("normalized image 0:")
+        print(normalizedImages[0])
+        print("normalized image 1:")
+        #print(normalizedImages[1])
+        print("label 0:")
+        print(allLabels[0])
+        print("label 1:")
+        #print(allLabels[1])
+        
+        tensors_to_log = {}
+        logging_hook = tf.train.LoggingTensorHook(
+            tensors=tensors_to_log, every_n_iter=50)
+        print("Hello")
+        theLabels = np.asarray(allLabels).astype(np.float32)
+        train_input_fn = tf.estimator.inputs.numpy_input_fn(
+            x={"x": normalizedImages},
+            y=theLabels,
+            batch_size=10,
+            num_epochs=10,
+            shuffle=False)
+
+        nucleus_detector.train(
+            input_fn=train_input_fn,
+            steps=20000,
+            hooks=[logging_hook])
     
     test_input_fn = tf.estimator.inputs.numpy_input_fn(
        x={"x": np.asarray(allTestImages).astype(np.float32)},
         shuffle=False)
-    
-    preds = nucleus_detector.predict(test_input_fn, hooks=logging_hook, checkpoint_path=None)
-    predictions = [p["preds"] for p in preds]
-    
-    imgStrs = generateOutput(allTestImageNames, predictions, allTestDims)
-    print(imgStrs)
-    
+    preds = nucleus_detector.predict(test_input_fn, checkpoint_path=None)
+    predList = []
+    for single_prediction in preds:
+        predList.append(list(single_prediction['preds']))
+    print("blah")
+    imgStrs = generateOutput(allTestImageNames, predList, allTestDims)
+    print("Hello")
+    print(len(imgStrs))
+    for i in range(0, len(imgStrs)):
+        fname = imgStrs[i][0]
+        extIndex = len(fname) - 4
+        imgStrs[i][0] = (fname[0:extIndex])
+        print(imgStrs[i][0])
+    df = pandas.read_csv('submission.csv')
+    for index, row in df.iterrows():
+        imgID = row['ImageId']
+        for i in range(0, len(imgStrs)):
+            if imgID == imgStrs[i][0]:
+                row['EncodedPixels'] = imgStrs[i][1]
+                print("here")
+                print(row['EncodedPixels'])
+                break
+        
+    df.to_csv(path_or_buf = 'submission.csv',
+                             header=True,
+                             index=False)
    # eval_input_fn = tf.estimator.inputs.numpy_input_fn(
     #    x={"x": testData},
      #   y=testLabels,
@@ -481,62 +517,10 @@ def trainModel(unused_argv):
     #eval_results = mnist_small_classifier.evaluate(input_fn=eval_input_fn)
     #print(eval_results)
 
-def test():
-    nucleus_detector = tf.estimator.Estimator(
-    model_fn = createModel, model_dir="/tmp/DataScienceBowl")
-    
-    tensors_to_log = {}
-    logging_hook = tf.train.LoggingTensorHook(
-        tensors=tensors_to_log, every_n_iter=50)
-    
-    allTestDims = []
-    allTestImages = []
-    allTestImageNames = []
-    first = True
-    skip = False
-    skip2 = False
-    boxRows = int(IMAGE_HEIGHT/BOX_HEIGHT)
-    boxColumns = int(IMAGE_WIDTH/BOX_WIDTH)
-    for filename in os.listdir(testURL):
-        print(filename)
-        imdir = testURL+filename+'/'+imagesDir
-        img = imread(imdir+os.listdir(imdir)[0])
-        allTestDims.append(img.shape)
-        if (img.shape[2] == 4):
-            img = img[:, :, 0:3]
-        allTestImageNames.append(os.listdir(imdir)[0])
-        img = compress(img)
-        allTestImages.append(img)
-        
-    test_input_fn = tf.estimator.inputs.numpy_input_fn(
-       x={"x": np.asarray(allTestImages).astype(np.float32)},
-        shuffle=False)
-    
-    preds = nucleus_detector.predict(test_input_fn, checkpoint_path=None)
-    i = 0
-    predList = []
-    for single_prediction in preds:
-        predList.append(list(single_prediction['preds']))
-    print("blah")
-    imgStrs = generateOutput([allTestImageNames[0]], [predList[0]], [allTestDims[0]])
-    print("Hello")
-    print(imgStrs[0])
-    names = []
-    encoding = []
-    print(len(imgStrs))
-    for i in range(0, len(imgStrs)):
-        names.append(imgStrs[i][0])
-        encoding.append(imgStrs[i][1])
-    d = {'ImageId' : names, 'EncodedPixels' : encoding}
-    df = pandas.DataFrame(data=d)
-    df.to_csv(path_or_buf = 'submission.csv',
-                             header=True,
-                             index=False)
-    #print(imgStrs)
-
 def main(unused_argv):
-    #trainModel(unused_argv)
-    test()
+    trainModel('')
+    #trainModel('TRAIN')
+    #test()
     img = [1.0, 0.4, 0.3, 0.2, 0.1,
            1.0, 0.5, 0.5, 0.1, 0.1,
            0.0, 0.0, 0.0, 0.0, 0.0,
