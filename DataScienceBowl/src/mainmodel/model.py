@@ -9,6 +9,11 @@ from bokeh.layouts import column
 from absl.logging import info
 from astropy.wcs.docstrings import row
 from _ast import Num
+from pathlib import Path
+from tensorflow.contrib.specs.python.specs_ops import Flat
+
+from mainmodel import Normalization
+from sympy.physics.quantum.gate import normalized
 
 dataURL = '../Data/stage1_train/'
 imagesDir = 'images/'
@@ -29,7 +34,7 @@ def compress(img):
     return img
 
 #perhaps normalize by mean and variance using tensorflow batch normalization?
-def normalizeInput(inputlist):
+def reduceInput(inputlist):
     normalizedList = []
     for img in inputlist:
         normalized = img/(255.0)
@@ -149,31 +154,84 @@ def createModel(features, labels, mode):
     conv1 = tf.layers.conv2d(
         inputs = input_layer,
         filters = 32,
-        kernel_size=[4,4],
+        kernel_size=[2,2],
         padding="same",
         activation=tf.nn.relu)
     
     #avg_pool1 =tf.layers.average_pooling2d(inputs = conv1, pool_size=[4,4], strides=[4,4]) 
-    max_pool1 = tf.layers.max_pooling2d(inputs = conv1, pool_size=[4,4], strides=4)
+    max_pool1 = tf.layers.max_pooling2d(inputs = conv1, pool_size=[2,2], strides=2)
     
     #pool1 = tf.concat([avg_pool1, max_pool1], -1)
     #HEIGHT/4*WIDTH/4*128
     conv2 = tf.layers.conv2d(
         inputs = max_pool1,
-        filters = 128,
-        kernel_size=[4,4],
+        filters = 64,
+        kernel_size=[2,2],
         padding="same",
         activation=tf.nn.relu)
     
     #avg_pool2 =tf.layers.average_pooling2d(inputs = conv2, pool_size=[4,4], strides=[4,4])
     #HEIGHT/16*WIDTH/16*128
-    max_pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[4,4], strides=4)
+    max_pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2,2], strides=2)
     
-    #pool2 = tf.concat([avg_pool2, max_pool2], -1)
     
-    pool2_flat = tf.reshape(max_pool2, [-1, int( int(IMAGE_HEIGHT/16) * int(IMAGE_WIDTH/16) * 128) ])
+    conv3 = tf.layers.conv2d(
+        inputs = max_pool2,
+        filters = 128,
+        kernel_size=[2,2],
+        padding="same",
+        activation=tf.nn.relu)
+
+    max_pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2,2], strides=2)
+
+    conv4 = tf.layers.conv2d(
+        inputs = max_pool3,
+        filters = 256,
+        kernel_size=[2,2],
+        padding="same",
+        activation=tf.nn.relu)
     
-    dense = tf.layers.dense(inputs=pool2_flat, units=1280, activation=tf.nn.relu)
+    max_pool4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2,2], strides=2)
+    
+    conv5 = tf.layers.conv2d(
+        inputs = max_pool4,
+        filters = 512,
+        kernel_size=[2,2],
+        padding="same",
+        activation=tf.nn.relu)
+    
+    max_pool5 = tf.layers.max_pooling2d(inputs=conv5, pool_size=[2,2], strides=2)
+    
+    conv6 = tf.layers.conv2d(
+        inputs = max_pool5,
+        filters = 1024,
+        kernel_size=[2,2],
+        padding="same",
+        activation=tf.nn.relu)
+    
+    max_pool6 = tf.layers.max_pooling2d(inputs=conv6, pool_size=[2,2], strides=2)
+    
+    conv7 = tf.layers.conv2d(
+        inputs = max_pool6,
+        filters = 2048,
+        kernel_size=[2,2],
+        padding="same",
+        activation=tf.nn.relu)
+    
+    max_pool7 = tf.layers.max_pooling2d(inputs=conv7, pool_size=[2,2], strides=2)
+    
+    conv8 = tf.layers.conv2d(
+        inputs = max_pool7,
+        filters = 4096,
+        kernel_size=[2,2],
+        padding="same",
+        activation=tf.nn.relu)
+    
+    max_pool8 = tf.layers.max_pooling2d(inputs=conv8, pool_size=[2,2], strides=2)
+    
+    pool_flat = tf.reshape(max_pool8, [-1, 4096 ])
+    
+    dense = tf.layers.dense(inputs=pool_flat, units=4096, activation=tf.nn.relu)
     
     dropout = tf.layers.dropout(inputs=dense, rate=0.2, training=mode == tf.estimator.ModeKeys.TRAIN)
     
@@ -207,7 +265,7 @@ def createModel(features, labels, mode):
     loss = tf.reduce_mean(tf.square(tf.multiply(full_mask, tf.to_float(tf.subtract(reshapedLabels, reshapedPreds, name="loss")))))
     
     if mode == tf.estimator.ModeKeys.TRAIN:
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.0)
         train_op = optimizer.minimize(
             loss=loss,
             global_step=tf.train.get_global_step())
@@ -367,7 +425,7 @@ def addSegment(segmentPair, traversedPixels, newAdditions, recurse = 0):
     newAdditions.append([topPoint, bottomPoint]) 
     traversedPixels.append([topPoint, bottomPoint])       
 
-def trainModel(arg):
+def trainModel(train = False, test = False):
     allImages = []
     allLabels = []
     alldims = []
@@ -379,98 +437,100 @@ def trainModel(arg):
     skip2 = False
     boxRows = int(IMAGE_HEIGHT/BOX_HEIGHT)
     boxColumns = int(IMAGE_WIDTH/BOX_WIDTH)
-    for filename in os.listdir(testURL):
-        print(filename)
-        imdir = testURL+filename+'/'+imagesDir
-        img = imread(imdir+os.listdir(imdir)[0])
-        allTestDims.append(img.shape)
-        if (img.shape[2] == 4):
-            img = img[:, :, 0:3]
-        allTestImageNames.append(os.listdir(imdir)[0])
-        img = compress(img)
-        allTestImages.append(img)
-    
+    mean = None
+    sd = None
     nucleus_detector = tf.estimator.Estimator(
         model_fn = createModel, model_dir="/tmp/DataScienceBowl")
     
-    if (arg=='TRAIN'):
-        for filename in os.listdir(dataURL):
-            print(filename)
-            imdir = dataURL+filename+'/'+imagesDir
-            immasks = dataURL+filename+'/'+masksDir
-            #imagefile = imageio.imread(imdir+os.listdir(imdir)[0])
-            img = imread(imdir+os.listdir(imdir)[0])
-            if (img.shape[2] == 4):
-                img = img[:, :, 0:3]
-            alldims.append(img.shape)
-            img = compress(img)
-            allImages.append(img)
-            masks = []
-            for m in os.listdir(immasks):
-                #mask = imageio.imread(immasks+m)
-                mask = imread(immasks+m)
-                mask = compress(mask)
-                masks.append(mask)
-                if (first):
-                    print("mask:"+m)
-                    if (len(masks)==1):
-                        print("Testing inside mask loop:")
-                        #print(np.nonzero(imread(immasks+m)))
-                        #animg = Image.fromarray(imread(immasks+m), 'L')
-                        #animg.save(compressionLoc)
-                        
-                #maskindices = np.nonzero(mask)
-                #masks.append(maskindices)
+    normalizedImages = []
+    if (train):
+        if (Path('images.npy')).exists():
+            print('hello')
+            normalized = np.load('images.npy')
+            allLabels = np.load('labels.npy')
+            alldims = np.load('dims.npy')
+            meanAndSD = np.load('meanAndSD.npy')
+            print('bye')
+            mean = meanAndSD[0]
+            sd = meanAndSD[1]
             
-            masksInfo = maskDetails(masks, first)
-            if (first):
+        else : 
+            for filename in os.listdir(dataURL):
                 print(filename)
-                print("mask info")
-                print(masksInfo[0])
-            trainingLabels = trainLabels(masksInfo)
-            if (first):
-                print("trainingLabels")
-                print(trainingLabels[0])
-            flattenedLabels = trainingLabels.flatten()
-            #lambda l: [lab for rows in trainingLabels for columns in rows for lab in column]
-            if (first):
-                print("flattenedLabels")
-                print(flattenedLabels[0])
-                print(flattenedLabels[1])
-                print(flattenedLabels[2])
-                print(flattenedLabels[3])
-                print(flattenedLabels[4])
-                print("after flattened")
-            print("Flatten")
-            processed = []
-            for n in range(0, len(flattenedLabels)):
-                processed.append(flattenedLabels[n])
-            print(processed)
-            allLabels.append(processed)
-            first=False
-            #Drop the 4th dimension. https://www.kaggle.com/c/data-science-bowl-2018/discussion/47750
-            #Maybe need to keep it later.
-        normalizedImages = normalizeInput(allImages)
-        #allTestImages = normalizeInput(allTestImages)
-        
-        print("normalized image 0:")
-        print(normalizedImages[0])
-        print("normalized image 1:")
-        #print(normalizedImages[1])
-        print("label 0:")
-        print(allLabels[0])
-        print("label 1:")
-        #print(allLabels[1])
-        
+                imdir = dataURL+filename+'/'+imagesDir
+                immasks = dataURL+filename+'/'+masksDir
+                #imagefile = imageio.imread(imdir+os.listdir(imdir)[0])
+                img = imread(imdir+os.listdir(imdir)[0])
+                if (img.shape[2] == 4):
+                    img = img[:, :, 0:3]
+                img = compress(img)
+                allImages.append(img)
+                alldims.append(img.shape)
+                masks = []
+                for m in os.listdir(immasks):
+                    #mask = imageio.imread(immasks+m)
+                    mask = imread(immasks+m)
+                    mask = compress(mask)
+                    masks.append(mask)
+                    if (first):
+                        print("mask:"+m)
+                        if (len(masks)==1):
+                            print("Testing inside mask loop:")
+                            #print(np.nonzero(imread(immasks+m)))
+                            #animg = Image.fromarray(imread(immasks+m), 'L')
+                            #animg.save(compressionLoc)
+                            
+                    #maskindices = np.nonzero(mask)
+                    #masks.append(maskindices)
+                
+                masksInfo = maskDetails(masks, first)
+                if (first):
+                    print(filename)
+                    print("mask info")
+                    print(masksInfo[0])
+                trainingLabels = trainLabels(masksInfo)
+                if (first):
+                    print("trainingLabels")
+                    print(trainingLabels[0])
+                flattenedLabels = trainingLabels.flatten()
+                #lambda l: [lab for rows in trainingLabels for columns in rows for lab in column]
+                if (first):
+                    print("flattenedLabels")
+                    print(flattenedLabels[0])
+                    print(flattenedLabels[1])
+                    print(flattenedLabels[2])
+                    print(flattenedLabels[3])
+                    print(flattenedLabels[4])
+                    print("after flattened")
+                print("Flatten")
+                processed = []
+                for n in range(0, len(flattenedLabels)):
+                    processed.append(flattenedLabels[n])
+                print(processed)
+                allLabels.append(processed)
+                first=False
+                #Drop the 4th dimension. https://www.kaggle.com/c/data-science-bowl-2018/discussion/47750
+                #Maybe need to keep it later.
+            
+            m, s, l = Normalization.NormalizeWidthHeightForAll(allLabels)
+            mean = m
+            sd = s
+            allLabels = l
+            normalizedImages = reduceInput(allImages)
+            
+            np.save('images', np.asarray(normalizedImages))
+            np.save('dims', np.asarray(alldims))
+            np.save('labels', np.asarray(allLabels))
+            np.save('meanAndSD', np.asarray([mean, sd]))
+            
         tensors_to_log = {}
         logging_hook = tf.train.LoggingTensorHook(
             tensors=tensors_to_log, every_n_iter=50)
-        print("Hello")
         theLabels = np.asarray(allLabels).astype(np.float32)
         train_input_fn = tf.estimator.inputs.numpy_input_fn(
             x={"x": normalizedImages},
             y=theLabels,
-            batch_size=10,
+            batch_size=1,
             num_epochs=10,
             shuffle=False)
 
@@ -478,36 +538,53 @@ def trainModel(arg):
             input_fn=train_input_fn,
             steps=20000,
             hooks=[logging_hook])
-    
-    test_input_fn = tf.estimator.inputs.numpy_input_fn(
-       x={"x": np.asarray(allTestImages).astype(np.float32)},
-        shuffle=False)
-    preds = nucleus_detector.predict(test_input_fn, checkpoint_path=None)
-    predList = []
-    for single_prediction in preds:
-        predList.append(list(single_prediction['preds']))
-    print("blah")
-    imgStrs = generateOutput(allTestImageNames, predList, allTestDims)
-    print("Hello")
-    print(len(imgStrs))
-    for i in range(0, len(imgStrs)):
-        fname = imgStrs[i][0]
-        extIndex = len(fname) - 4
-        imgStrs[i][0] = (fname[0:extIndex])
-        print(imgStrs[i][0])
-    df = pandas.read_csv('submission.csv')
-    for index, row in df.iterrows():
-        imgID = row['ImageId']
-        for i in range(0, len(imgStrs)):
-            if imgID == imgStrs[i][0]:
-                row['EncodedPixels'] = imgStrs[i][1]
-                print("here")
-                print(row['EncodedPixels'])
-                break
+     
+    if (test):   
+        for filename in os.listdir(testURL):
+            print(filename)
+            imdir = testURL+filename+'/'+imagesDir
+            img = imread(imdir+os.listdir(imdir)[0])
+            allTestDims.append(img.shape)
+            if (img.shape[2] == 4):
+                img = img[:, :, 0:3]
+            allTestImageNames.append(os.listdir(imdir)[0])
+            img = compress(img)
+            allTestImages.append(img)
         
-    df.to_csv(path_or_buf = 'submission.csv',
-                             header=True,
-                             index=False)
+        allTestImages = reduceInput(allTestImages)
+        test_input_fn = tf.estimator.inputs.numpy_input_fn(
+           x={"x": np.asarray(allTestImages).astype(np.float32)},
+            shuffle=False)
+        preds = nucleus_detector.predict(test_input_fn, checkpoint_path=None)
+        predList = []
+        for single_prediction in preds:
+            predList.append(list(single_prediction['preds']))
+        predList = np.asarray(predList)
+        print(predList)
+        reshapePreds = np.reshape(predList, (-1, boxRows, boxColumns, 5))
+        unNormal = Normalization.unNormalizeAll(reshapePreds, mean, sd)
+        unNormal = np.reshape(unNormal, (-1, boxRows*boxColumns*5))
+        imgStrs = generateOutput(allTestImageNames, unNormal, allTestDims)
+        print("Hello")
+        print(len(imgStrs))
+        for i in range(0, len(imgStrs)):
+            fname = imgStrs[i][0]
+            extIndex = len(fname) - 4
+            imgStrs[i][0] = (fname[0:extIndex])
+            print(imgStrs[i][0])
+        df = pandas.read_csv('submission.csv')
+        for index, row in df.iterrows():
+            imgID = row['ImageId']
+            for i in range(0, len(imgStrs)):
+                if imgID == imgStrs[i][0]:
+                    row['EncodedPixels'] = imgStrs[i][1]
+                    print("here")
+                    print(row['EncodedPixels'])
+                    break
+            
+        df.to_csv(path_or_buf = 'submission.csv',
+                                 header=True,
+                                 index=False)
    # eval_input_fn = tf.estimator.inputs.numpy_input_fn(
     #    x={"x": testData},
      #   y=testLabels,
@@ -518,7 +595,7 @@ def trainModel(arg):
     #print(eval_results)
 
 def main(unused_argv):
-    trainModel('')
+    trainModel(True, True)
     #trainModel('TRAIN')
     #test()
     img = [1.0, 0.4, 0.3, 0.2, 0.1,
