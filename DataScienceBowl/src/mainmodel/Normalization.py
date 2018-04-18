@@ -2,7 +2,7 @@ import tensorflow as tf
 import os
 import numpy as np
 import pandas
-from mainmodel.model import IMAGE_HEIGHT, IMAGE_WIDTH, BOX_HEIGHT, BOX_WIDTH
+from mainmodel.model import IMAGE_HEIGHT, IMAGE_WIDTH, BOX_HEIGHT, BOX_WIDTH as IMAGE_HEIGHT, IMAGE_WIDTH, BOX_HEIGHT, BOX_WIDTH
 
 def NormalizeWidthHeight(labels):
     #1) Find the mean of all width/heights.

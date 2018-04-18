@@ -8,7 +8,7 @@ from skimage.transform import resize
 from astropy.wcs.docstrings import row
 from pathlib import Path
 
-from mainmodel import Normalization
+import mainmodel.Normalization as Normalization
 
 dataURL = '../Data/stage1_train/'
 imagesDir = 'images/'
