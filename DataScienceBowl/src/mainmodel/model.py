@@ -7,7 +7,7 @@ from skimage.io import imread
 from skimage.transform import resize
 from pathlib import Path
 
-import mainmodel.Normalization as Normalization
+from . import Normalization
 
 dataURL = '../Data/stage1_train/'
 imagesDir = 'images/'
