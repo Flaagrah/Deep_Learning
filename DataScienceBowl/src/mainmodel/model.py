@@ -430,16 +430,20 @@ def trainModel(train = False, test = False):
     boxColumns = int(IMAGE_WIDTH/BOX_WIDTH)
     mean = None
     sd = None
+    
+    moddir = "/tmp/DataScienceBowl"
+    if Path("/output").exists() :
+        moddir = "/output/"
     nucleus_detector = tf.estimator.Estimator(
-        model_fn = createModel, model_dir="/tmp/DataScienceBowl")
+        model_fn = createModel, model_dir=moddir)
     
     normalizedImages = None
     if (train):
         if (Path('images.npy')).exists():
             print('hello')
-            normalizedImages = np.asarray(np.load('images.npy')).astype(np.float32)
-            allLabels = np.asarray(np.load('labels.npy')).astype(np.float32)
-            alldims = np.asarray(np.load('dims.npy')).astype(np.int32)
+            normalizedImages = np.asarray(np.load('data/images.npy')).astype(np.float32)
+            allLabels = np.asarray(np.load('data/labels.npy')).astype(np.float32)
+            alldims = np.asarray(np.load('data/dims.npy')).astype(np.int32)
             print('bye')
             #normalizedImages = normalizedImages[:80]
             #allLabels = allLabels[:80]
@@ -510,9 +514,9 @@ def trainModel(train = False, test = False):
             alldims = np.asarray(alldims).astype(np.int32)
             allLabels = np.asarray(allLabels).astype(np.float32)
             
-            np.save('images', normalizedImages)
-            np.save('dims', alldims)
-            np.save('labels', allLabels)
+            np.save('data/images', normalizedImages)
+            np.save('data/dims', alldims)
+            np.save('data/labels', allLabels)
             
         tensors_to_log = {}
         logging_hook = tf.train.LoggingTensorHook(
@@ -585,7 +589,7 @@ def trainModel(train = False, test = False):
     #print(eval_results)
 
 def main(unused_argv):
-    trainModel(True, True)
+    trainModel(True, False)
 
     images = np.load('images.npy')
     labels = np.load('labels.npy')
