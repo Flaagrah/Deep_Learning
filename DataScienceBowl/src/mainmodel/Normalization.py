@@ -2,14 +2,19 @@ import tensorflow as tf
 import os
 import numpy as np
 import pandas
-from . import model as model
+
+IMAGE_HEIGHT = 256
+IMAGE_WIDTH = 256
+
+BOX_HEIGHT = 16
+BOX_WIDTH = 16
 
 def NormalizeWidthHeight(labels):
     #1) Find the mean of all width/heights.
     #2) Find the standard deviation.
     #3) Calculate sd for each width/height.
     
-    rLabels = np.reshape(labels, (-1, int(model.IMAGE_HEIGHT/model.BOX_HEIGHT), int(model.IMAGE_WIDTH/model.BOX_WIDTH), 5))
+    rLabels = np.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
     widthHeight = rLabels[:,:,:,3:]
     otherLabels = rLabels[:,:,:,0:3]
     
