@@ -2,6 +2,7 @@ import tensorflow as tf
 import os
 import numpy as np
 import pandas
+import imageio
 from PIL import Image
 from skimage.io import imread
 from skimage.transform import resize
@@ -13,7 +14,6 @@ from pathlib import Path
 from tensorflow.contrib.specs.python.specs_ops import Flat
 
 from mainmodel import Normalization
-from sympy.physics.quantum.gate import normalized
 
 dataURL = '../Data/stage1_train/'
 imagesDir = 'images/'
@@ -27,7 +27,7 @@ IMAGE_WIDTH = 256
 BOX_HEIGHT = 16
 BOX_WIDTH = 16
 
-CERTAINTY_THRESHOLD = 0.6
+CERTAINTY_THRESHOLD = 0.5
 
 def compress(img):
     img = resize(img, (IMAGE_HEIGHT, IMAGE_WIDTH))
@@ -144,99 +144,84 @@ def convertOutput(output):
             box.append(width)
             boxes.append(box)
     print(boxes[0])
-    return tf.convert_to_tensor(boxes)
+    return tf.convert_to_tensor(boxes)    
+    
+def conv2d_3x3(filters):
+    return tf.layers.Conv2D(filters, kernel_size=(3,3), activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+def max_pool():
+    return tf.layers.MaxPooling2D((2,2), strides=2, padding='same') 
+
+def conv2d_transpose_2x2(filters):
+    return tf.layers.Conv2DTranspose(filters, kernel_size=(2, 2), strides=(2, 2), padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+from tensorflow.python.ops import array_ops
+def concatenate(branches):
+    return array_ops.concat(branches, 3)
+
     
 def createModel(features, labels, mode):
     #HEIGHT*WIDTH*4
     input_layer = tf.reshape(features["x"], [-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3])
-    
-    #HEIGHT*WIDTH*32
-    conv1 = tf.layers.conv2d(
-        inputs = input_layer,
-        filters = 32,
-        kernel_size=[2,2],
-        padding="same",
-        activation=tf.nn.relu)
-    
-    #avg_pool1 =tf.layers.average_pooling2d(inputs = conv1, pool_size=[4,4], strides=[4,4]) 
-    max_pool1 = tf.layers.max_pooling2d(inputs = conv1, pool_size=[2,2], strides=2)
-    
-    #pool1 = tf.concat([avg_pool1, max_pool1], -1)
-    #HEIGHT/4*WIDTH/4*128
-    conv2 = tf.layers.conv2d(
-        inputs = max_pool1,
-        filters = 64,
-        kernel_size=[2,2],
-        padding="same",
-        activation=tf.nn.relu)
-    
-    #avg_pool2 =tf.layers.average_pooling2d(inputs = conv2, pool_size=[4,4], strides=[4,4])
-    #HEIGHT/16*WIDTH/16*128
-    max_pool2 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2,2], strides=2)
-    
-    
-    conv3 = tf.layers.conv2d(
-        inputs = max_pool2,
-        filters = 128,
-        kernel_size=[2,2],
-        padding="same",
-        activation=tf.nn.relu)
 
-    max_pool3 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2,2], strides=2)
+    #Model taken from:
+    #https://www.kaggle.com/piotrczapla/tensorflow-u-net-starter-lb-0-34
+    c1 = conv2d_3x3(8) (input_layer)
+    c1 = conv2d_3x3(8) (c1)
+    p1 = max_pool() (c1)
 
-    conv4 = tf.layers.conv2d(
-        inputs = max_pool3,
-        filters = 256,
-        kernel_size=[2,2],
-        padding="same",
-        activation=tf.nn.relu)
+    c2 = conv2d_3x3(16) (p1)
+    c2 = conv2d_3x3(16) (c2)
+    p2 = max_pool() (c2)
+
+    c3 = conv2d_3x3(32) (p2)
+    c3 = conv2d_3x3(32) (c3)
+    p3 = max_pool() (c3)
+
+    c4 = conv2d_3x3(64) (p3)
+    c4 = conv2d_3x3(64) (c4)
+    p4 = max_pool() (c4)
+
+    c5 = conv2d_3x3(128) (p4)
+    c5 = conv2d_3x3(128) (c5)
+
+    u6 = conv2d_transpose_2x2(64) (c5)
+    u6 = concatenate([u6, c4])
+    c6 = conv2d_3x3(64) (u6)
+    c6 = conv2d_3x3(64) (c6)
+
+    u7 = conv2d_transpose_2x2(32) (c6)
+    u7 = concatenate([u7, c3])
+    c7 = conv2d_3x3(32) (u7)
+    c7 = conv2d_3x3(32) (c7)
+
+    u8 = conv2d_transpose_2x2(16) (c7)
+    u8 = concatenate([u8, c2])
+    c8 = conv2d_3x3(16) (u8)
+    c8 = conv2d_3x3(16) (c8)
+
+    u9 = conv2d_transpose_2x2(8) (c8)
+    u9 = concatenate([u9, c1])
+    c9 = conv2d_3x3(8) (u9)
+    c9 = conv2d_3x3(8) (c9)
+
+    c10 = max_pool() (c9)
+    c11 = max_pool() (c10)
+    c12 = max_pool() (c11)
+    c13 = max_pool() (c12)
+    c14 = max_pool() (c13)
+    c15 = max_pool() (c14)
+    c16 = max_pool() (c15)
+    c17 = max_pool() (c16)
     
-    max_pool4 = tf.layers.max_pooling2d(inputs=conv4, pool_size=[2,2], strides=2)
-    
-    conv5 = tf.layers.conv2d(
-        inputs = max_pool4,
-        filters = 512,
-        kernel_size=[2,2],
-        padding="same",
-        activation=tf.nn.relu)
-    
-    max_pool5 = tf.layers.max_pooling2d(inputs=conv5, pool_size=[2,2], strides=2)
-    
-    conv6 = tf.layers.conv2d(
-        inputs = max_pool5,
-        filters = 1024,
-        kernel_size=[2,2],
-        padding="same",
-        activation=tf.nn.relu)
-    
-    max_pool6 = tf.layers.max_pooling2d(inputs=conv6, pool_size=[2,2], strides=2)
-    
-    conv7 = tf.layers.conv2d(
-        inputs = max_pool6,
-        filters = 2048,
-        kernel_size=[2,2],
-        padding="same",
-        activation=tf.nn.relu)
-    
-    max_pool7 = tf.layers.max_pooling2d(inputs=conv7, pool_size=[2,2], strides=2)
-    
-    conv8 = tf.layers.conv2d(
-        inputs = max_pool7,
-        filters = 4096,
-        kernel_size=[2,2],
-        padding="same",
-        activation=tf.nn.relu)
-    
-    max_pool8 = tf.layers.max_pooling2d(inputs=conv8, pool_size=[2,2], strides=2)
-    
-    pool_flat = tf.reshape(max_pool8, [-1, 4096 ])
-    
-    dense = tf.layers.dense(inputs=pool_flat, units=4096, activation=tf.nn.relu)
+    dense = tf.layers.dense(inputs=c17, units = 1280)
     
     dropout = tf.layers.dropout(inputs=dense, rate=0.2, training=mode == tf.estimator.ModeKeys.TRAIN)
     
-    preds = tf.layers.dense(inputs=dropout, units = int( (IMAGE_HEIGHT/BOX_HEIGHT) * (IMAGE_WIDTH/BOX_WIDTH) * 5 ), activation=tf.nn.sigmoid )
-    
+    preds = tf.layers.dense(inputs=dropout, units = int( (IMAGE_HEIGHT/BOX_HEIGHT) * (IMAGE_WIDTH/BOX_WIDTH) * 5 ), activation=tf.nn.sigmoid, kernel_initializer=tf.contrib.layers.xavier_initializer() )
+    print("h")
+    print(preds.shape)
+    print('J')
     predictions = {
         "preds": preds,
         #"boxes": convertOutput(logits)
@@ -262,10 +247,16 @@ def createModel(features, labels, mode):
 
     full_mask = tf.concat([tf.to_float(mask_of_ones), tf.to_float(mask[:, :, :, 1:])], 3)
 
-    loss = tf.reduce_mean(tf.square(tf.multiply(full_mask, tf.to_float(tf.subtract(reshapedLabels, reshapedPreds, name="loss")))))
+    terms = tf.multiply(full_mask, tf.to_float(tf.subtract(reshapedLabels, reshapedPreds, name="loss")))
+    
+    non_zeros = tf.cast(tf.count_nonzero(full_mask), dtype=tf.float32)
+
+    loss = tf.div((tf.reduce_sum(tf.square(terms))), non_zeros, "loss_calc")
+    #loss = tf.reduce_sum(tf.square(terms))
     
     if mode == tf.estimator.ModeKeys.TRAIN:
-        optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.0)
+        #optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.0)
+        optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
         train_op = optimizer.minimize(
             loss=loss,
             global_step=tf.train.get_global_step())
@@ -442,18 +433,17 @@ def trainModel(train = False, test = False):
     nucleus_detector = tf.estimator.Estimator(
         model_fn = createModel, model_dir="/tmp/DataScienceBowl")
     
-    normalizedImages = []
+    normalizedImages = None
     if (train):
         if (Path('images.npy')).exists():
             print('hello')
-            normalized = np.load('images.npy')
-            allLabels = np.load('labels.npy')
-            alldims = np.load('dims.npy')
-            meanAndSD = np.load('meanAndSD.npy')
+            normalizedImages = np.asarray(np.load('images.npy')).astype(np.float32)
+            allLabels = np.asarray(np.load('labels.npy')).astype(np.float32)
+            alldims = np.asarray(np.load('dims.npy')).astype(np.int32)
             print('bye')
-            mean = meanAndSD[0]
-            sd = meanAndSD[1]
-            
+            #normalizedImages = normalizedImages[:80]
+            #allLabels = allLabels[:80]
+            #alldims = alldims[:80]
         else : 
             for filename in os.listdir(dataURL):
                 print(filename)
@@ -461,11 +451,11 @@ def trainModel(train = False, test = False):
                 immasks = dataURL+filename+'/'+masksDir
                 #imagefile = imageio.imread(imdir+os.listdir(imdir)[0])
                 img = imread(imdir+os.listdir(imdir)[0])
+                alldims.append((img.shape[0], img.shape[1], 3))
                 if (img.shape[2] == 4):
                     img = img[:, :, 0:3]
                 img = compress(img)
                 allImages.append(img)
-                alldims.append(img.shape)
                 masks = []
                 for m in os.listdir(immasks):
                     #mask = imageio.imread(immasks+m)
@@ -512,26 +502,26 @@ def trainModel(train = False, test = False):
                 #Drop the 4th dimension. https://www.kaggle.com/c/data-science-bowl-2018/discussion/47750
                 #Maybe need to keep it later.
             
-            m, s, l = Normalization.NormalizeWidthHeightForAll(allLabels)
-            mean = m
-            sd = s
+            l = Normalization.NormalizeWidthHeightForAll(allLabels)
             allLabels = l
             normalizedImages = reduceInput(allImages)
             
-            np.save('images', np.asarray(normalizedImages))
-            np.save('dims', np.asarray(alldims))
-            np.save('labels', np.asarray(allLabels))
-            np.save('meanAndSD', np.asarray([mean, sd]))
+            normalizedImages = np.asarray(normalizedImages).astype(np.float32)
+            alldims = np.asarray(alldims).astype(np.int32)
+            allLabels = np.asarray(allLabels).astype(np.float32)
+            
+            np.save('images', normalizedImages)
+            np.save('dims', alldims)
+            np.save('labels', allLabels)
             
         tensors_to_log = {}
         logging_hook = tf.train.LoggingTensorHook(
             tensors=tensors_to_log, every_n_iter=50)
-        theLabels = np.asarray(allLabels).astype(np.float32)
         train_input_fn = tf.estimator.inputs.numpy_input_fn(
             x={"x": normalizedImages},
-            y=theLabels,
-            batch_size=1,
-            num_epochs=10,
+            y=allLabels,
+            batch_size=40,
+            num_epochs=None,
             shuffle=False)
 
         nucleus_detector.train(
@@ -562,7 +552,7 @@ def trainModel(train = False, test = False):
         predList = np.asarray(predList)
         print(predList)
         reshapePreds = np.reshape(predList, (-1, boxRows, boxColumns, 5))
-        unNormal = Normalization.unNormalizeAll(reshapePreds, mean, sd)
+        unNormal = Normalization.unNormalizeAll(reshapePreds)
         unNormal = np.reshape(unNormal, (-1, boxRows*boxColumns*5))
         imgStrs = generateOutput(allTestImageNames, unNormal, allTestDims)
         print("Hello")
@@ -596,6 +586,25 @@ def trainModel(train = False, test = False):
 
 def main(unused_argv):
     trainModel(True, True)
+
+    images = np.load('images.npy')
+    labels = np.load('labels.npy')
+    dims = np.load('dims.npy')
+    
+    imageio.imwrite('img.png', 255*images[1])
+    filenames = os.listdir(dataURL)
+    rUnNorm = np.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
+    print("UnNormalize")
+    print(rUnNorm[0][0])
+    rUnNorm = Normalization.unNormalizeAll(rUnNorm)
+    rUnNorm = np.reshape(rUnNorm, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
+    print(rUnNorm[0][0])
+    print("Normalize")
+    normed = Normalization.NormalizeWidthHeightForAll(rUnNorm)
+    normed = np.reshape(normed, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
+    print(normed[0][0])
+    #rUnNorm = np.reshape(rUnNorm, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
+
     #trainModel('TRAIN')
     #test()
     img = [1.0, 0.4, 0.3, 0.2, 0.1,
@@ -954,6 +963,9 @@ def main(unused_argv):
     
     
 
-if __name__ == '__main__':
-    tf.logging.set_verbosity(tf.logging.INFO)
-    tf.app.run(main)
+print("hello")
+tf.logging.set_verbosity(tf.logging.INFO)
+print("hello")
+gpu_options = tf.GPUOptions(allow_growth=True)
+session = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
+tf.app.run(main)
