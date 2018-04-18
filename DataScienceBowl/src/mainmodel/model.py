@@ -5,7 +5,6 @@ import pandas
 import imageio
 from skimage.io import imread
 from skimage.transform import resize
-from astropy.wcs.docstrings import row
 from pathlib import Path
 
 import mainmodel.Normalization as Normalization
