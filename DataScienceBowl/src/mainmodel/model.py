@@ -433,7 +433,7 @@ def trainModel(train = False, test = False):
     
     normalizedImages = None
     if (train):
-        if (Path('images.npy')).exists():
+        if (Path('/data/images.npy')).exists():
             print('hello')
             normalizedImages = np.asarray(np.load('/data/images.npy')).astype(np.float32)
             allLabels = np.asarray(np.load('/data/labels.npy')).astype(np.float32)
