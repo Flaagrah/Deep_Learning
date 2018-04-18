@@ -435,9 +435,9 @@ def trainModel(train = False, test = False):
     if (train):
         if (Path('images.npy')).exists():
             print('hello')
-            normalizedImages = np.asarray(np.load('data/images.npy')).astype(np.float32)
-            allLabels = np.asarray(np.load('data/labels.npy')).astype(np.float32)
-            alldims = np.asarray(np.load('data/dims.npy')).astype(np.int32)
+            normalizedImages = np.asarray(np.load('/data/images.npy')).astype(np.float32)
+            allLabels = np.asarray(np.load('/data/labels.npy')).astype(np.float32)
+            alldims = np.asarray(np.load('/data/dims.npy')).astype(np.int32)
             print('bye')
             #normalizedImages = normalizedImages[:80]
             #allLabels = allLabels[:80]
@@ -508,9 +508,9 @@ def trainModel(train = False, test = False):
             alldims = np.asarray(alldims).astype(np.int32)
             allLabels = np.asarray(allLabels).astype(np.float32)
             
-            np.save('data/images', normalizedImages)
-            np.save('data/dims', alldims)
-            np.save('data/labels', allLabels)
+            np.save('/data/images', normalizedImages)
+            np.save('/data/dims', alldims)
+            np.save('/data/labels', allLabels)
             
         tensors_to_log = {}
         logging_hook = tf.train.LoggingTensorHook(
