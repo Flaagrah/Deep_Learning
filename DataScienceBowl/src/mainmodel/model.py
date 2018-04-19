@@ -141,13 +141,13 @@ def convertOutput(output):
     return tf.convert_to_tensor(boxes)    
     
 def conv2d_3x3(filters):
-    return tf.layers.Conv2D(filters, kernel_size=(3,3), activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
+    return tf.layers.conv2d(filters, kernel_size=(3,3), activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 def max_pool():
-    return tf.layers.MaxPooling2D((2,2), strides=2, padding='same') 
+    return tf.layers.max_pooling2d((2,2), strides=2, padding='same') 
 
 def conv2d_transpose_2x2(filters):
-    return tf.layers.Conv2DTranspose(filters, kernel_size=(2, 2), strides=(2, 2), padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
+    return tf.layers.conv2d_transpose(filters, kernel_size=(2, 2), strides=(2, 2), padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 from tensorflow.python.ops import array_ops
 def concatenate(branches):
