@@ -1,4 +1,4 @@
-import tensorflow as tf
+import tensorflow
 import os
 import numpy as np
 import pandas
@@ -120,7 +120,7 @@ def convertOutput(output):
     def addToArray(element):
         outputArray.append(element)
     print(("here"))
-    tf.map_fn(addToArray, output)
+    tensorflow.map_fn(addToArray, output)
     print("there")
     length = len(outputArray)
     boxes = []
@@ -138,25 +138,25 @@ def convertOutput(output):
             box.append(width)
             boxes.append(box)
     print(boxes[0])
-    return tf.convert_to_tensor(boxes)    
+    return tensorflow.convert_to_tensor(boxes)    
     
+from tensorflow.python.ops import array_ops
 def conv2d_3x3(filters):
-    return tf.layers.conv2d(filters, kernel_size=(3,3), strides=(3, 3), activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
+    return tensorflow.layers.Conv2D(filters, kernel_size=(3,3), activation=tensorflow.nn.relu, padding='same')
 
 def max_pool():
-    return tf.layers.max_pooling2d((2,2), strides=2, padding='same') 
+    return tensorflow.layers.MaxPooling2D((2,2), strides=2, padding='same') 
 
 def conv2d_transpose_2x2(filters):
-    return tf.layers.conv2d_transpose(filters, kernel_size=(2, 2), strides=(2, 2), padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
+    return tensorflow.layers.Conv2DTranspose(filters, kernel_size=(2, 2), strides=(2, 2), padding='same')
 
-from tensorflow.python.ops import array_ops
 def concatenate(branches):
     return array_ops.concat(branches, 3)
 
     
 def createModel(features, labels, mode):
     #HEIGHT*WIDTH*4
-    input_layer = tf.reshape(features["x"], [-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3])
+    input_layer = tensorflow.reshape(features["x"], [-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3])
 
     #Model taken from:
     #https://www.kaggle.com/piotrczapla/tensorflow-u-net-starter-lb-0-34
@@ -208,11 +208,11 @@ def createModel(features, labels, mode):
     c16 = max_pool() (c15)
     c17 = max_pool() (c16)
     
-    dense = tf.layers.dense(inputs=c17, units = 1280)
+    dense = tensorflow.layers.dense(inputs=c17, units = 1280)
     
-    dropout = tf.layers.dropout(inputs=dense, rate=0.2, training=mode == tf.estimator.ModeKeys.TRAIN)
+    dropout = tensorflow.layers.dropout(inputs=dense, rate=0.2, training=mode == tensorflow.estimator.ModeKeys.TRAIN)
     
-    preds = tf.layers.dense(inputs=dropout, units = int( (IMAGE_HEIGHT/BOX_HEIGHT) * (IMAGE_WIDTH/BOX_WIDTH) * 5 ), activation=tf.nn.sigmoid, kernel_initializer=tf.contrib.layers.xavier_initializer() )
+    preds = tensorflow.layers.dense(inputs=dropout, units = int( (IMAGE_HEIGHT/BOX_HEIGHT) * (IMAGE_WIDTH/BOX_WIDTH) * 5 ), activation=tensorflow.nn.sigmoid, kernel_initializer=tensorflow.contrib.layers.xavier_initializer() )
     print("h")
     print(preds.shape)
     print('J')
@@ -221,45 +221,45 @@ def createModel(features, labels, mode):
         #"boxes": convertOutput(logits)
         }
     
-    if mode == tf.estimator.ModeKeys.PREDICT :
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
+    if mode == tensorflow.estimator.ModeKeys.PREDICT :
+        return tensorflow.estimator.EstimatorSpec(mode=mode, predictions=predictions)
     
     print("label shape:")
     print(labels.shape)
     print("logit shape:")
     print(preds.shape)
-    #loss = tf.losses.mean_squared_error(labels=labels, predictions=preds)
+    #loss = tensorflow.losses.mean_squared_error(labels=labels, predictions=preds)
     #How are the preds reshaped.
-    reshapedPreds = tf.reshape(preds, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
-    reshapedLabels = tf.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
+    reshapedPreds = tensorflow.reshape(preds, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
+    reshapedLabels = tensorflow.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
     #Cost calculation taken from https://stackoverflow.com/questions/48938120/make-tensorflow-ignore-values
     #This excludes bounding boxes that are 
-    mask = tf.tile(reshapedLabels[:, :, :, 0:1], [1, 1, 1, 5]) #repeating the first item 5 times
-    mask_first = tf.tile(reshapedLabels[:, :, :, 0:1], [1, 1, 1, 1]) #repeating the first item 1 time
+    mask = tensorflow.tile(reshapedLabels[:, :, :, 0:1], [1, 1, 1, 5]) #repeating the first item 5 times
+    mask_first = tensorflow.tile(reshapedLabels[:, :, :, 0:1], [1, 1, 1, 1]) #repeating the first item 1 time
 
-    mask_of_ones = tf.ones(tf.shape(mask_first))
+    mask_of_ones = tensorflow.ones(tensorflow.shape(mask_first))
 
-    full_mask = tf.concat([tf.to_float(mask_of_ones), tf.to_float(mask[:, :, :, 1:])], 3)
+    full_mask = tensorflow.concat([tensorflow.to_float(mask_of_ones), tensorflow.to_float(mask[:, :, :, 1:])], 3)
 
-    terms = tf.multiply(full_mask, tf.to_float(tf.subtract(reshapedLabels, reshapedPreds, name="loss")))
+    terms = tensorflow.multiply(full_mask, tensorflow.to_float(tensorflow.subtract(reshapedLabels, reshapedPreds, name="loss")))
     
-    non_zeros = tf.cast(tf.count_nonzero(full_mask), dtype=tf.float32)
+    non_zeros = tensorflow.cast(tensorflow.count_nonzero(full_mask), dtype=tensorflow.float32)
 
-    loss = tf.div((tf.reduce_sum(tf.square(terms))), non_zeros, "loss_calc")
-    #loss = tf.reduce_sum(tf.square(terms))
+    loss = tensorflow.div((tensorflow.reduce_sum(tensorflow.square(terms))), non_zeros, "loss_calc")
+    #loss = tensorflow.reduce_sum(tensorflow.square(terms))
     
-    if mode == tf.estimator.ModeKeys.TRAIN:
-        #optimizer = tf.train.GradientDescentOptimizer(learning_rate=1.0)
-        optimizer = tf.train.AdamOptimizer(learning_rate=1e-4)
+    if mode == tensorflow.estimator.ModeKeys.TRAIN:
+        #optimizer = tensorflow.train.GradientDescentOptimizer(learning_rate=1.0)
+        optimizer = tensorflow.train.AdamOptimizer(learning_rate=1e-4)
         train_op = optimizer.minimize(
             loss=loss,
-            global_step=tf.train.get_global_step())
-        return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
+            global_step=tensorflow.train.get_global_step())
+        return tensorflow.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)
         
     eval_metric_ops = {
-        "accuracy": tf.metrics.accuracy(
+        "accuracy": tensorflow.metrics.accuracy(
         labels=labels, predictions=predictions["logits"])}
-    return tf.estimator.EstimatorSpec(
+    return tensorflow.estimator.EstimatorSpec(
         mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
 
 
@@ -428,7 +428,7 @@ def trainModel(train = False, test = False):
     moddir = "/tmp/DataScienceBowl"
     if Path("/output").exists() :
         moddir = "/output/"
-    nucleus_detector = tf.estimator.Estimator(
+    nucleus_detector = tensorflow.estimator.Estimator(
         model_fn = createModel, model_dir=moddir)
     
     normalizedImages = None
@@ -513,9 +513,9 @@ def trainModel(train = False, test = False):
             np.save('/data/labels', allLabels)
             
         tensors_to_log = {}
-        logging_hook = tf.train.LoggingTensorHook(
+        logging_hook = tensorflow.train.LoggingTensorHook(
             tensors=tensors_to_log, every_n_iter=50)
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(
+        train_input_fn = tensorflow.estimator.inputs.numpy_input_fn(
             x={"x": normalizedImages},
             y=allLabels,
             batch_size=40,
@@ -540,7 +540,7 @@ def trainModel(train = False, test = False):
             allTestImages.append(img)
         
         allTestImages = reduceInput(allTestImages)
-        test_input_fn = tf.estimator.inputs.numpy_input_fn(
+        test_input_fn = tensorflow.estimator.inputs.numpy_input_fn(
            x={"x": np.asarray(allTestImages).astype(np.float32)},
             shuffle=False)
         preds = nucleus_detector.predict(test_input_fn, checkpoint_path=None)
@@ -573,7 +573,7 @@ def trainModel(train = False, test = False):
         df.to_csv(path_or_buf = 'submission.csv',
                                  header=True,
                                  index=False)
-   # eval_input_fn = tf.estimator.inputs.numpy_input_fn(
+   # eval_input_fn = tensorflow.estimator.inputs.numpy_input_fn(
     #    x={"x": testData},
      #   y=testLabels,
       #  num_epochs=1,
@@ -962,8 +962,6 @@ def main(unused_argv):
     
 
 print("hello")
-tf.logging.set_verbosity(tf.logging.INFO)
+tensorflow.logging.set_verbosity(tensorflow.logging.INFO)
 print("hello")
-gpu_options = tf.GPUOptions(allow_growth=True)
-session = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
-tf.app.run(main)
+tensorflow.app.run(main)
