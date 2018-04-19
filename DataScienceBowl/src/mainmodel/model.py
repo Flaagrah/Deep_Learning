@@ -141,7 +141,7 @@ def convertOutput(output):
     return tf.convert_to_tensor(boxes)    
     
 def conv2d_3x3(filters):
-    return tf.layers.conv2d(filters, kernel_size=(3,3), activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
+    return tf.layers.conv2d(filters, kernel_size=(3,3), strides=(3, 3), activation=tf.nn.relu, padding='same', kernel_initializer=tf.contrib.layers.xavier_initializer())
 
 def max_pool():
     return tf.layers.max_pooling2d((2,2), strides=2, padding='same') 
