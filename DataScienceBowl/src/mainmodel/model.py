@@ -3,11 +3,12 @@ import os
 import numpy as np
 import pandas
 import imageio
+import codecs, json
 from skimage.io import imread
 from skimage.transform import resize
 from pathlib import Path
 
-from . import Normalization
+import Normalization
 
 dataURL = '../Data/stage1_train/'
 imagesDir = 'images/'
@@ -107,38 +108,6 @@ def trainLabels(maskInfo):
                 boxes[h][w][3]=0.0
                 boxes[h][w][4]=0.0
     return boxes
-
-def combineMasks(rawmasks):
-    mergedMasks = np.zeros((IMAGE_HEIGHT, IMAGE_WIDTH))
-    for i in range(0, len(rawmasks)):
-        mergedMasks = mergedMasks + rawmasks[i]
-    return mergedMasks
-
-def convertOutput(output):
-    outputArray= []
-    
-    def addToArray(element):
-        outputArray.append(element)
-    print(("here"))
-    tensorflow.map_fn(addToArray, output)
-    print("there")
-    length = len(outputArray)
-    boxes = []
-    print(outputArray[0])
-    for i in range(0, length):
-        if ((i % 5) == 0 and outputArray[i] > 0.5):
-            row = outputArray[i+1]
-            column = outputArray[i+2]
-            height = outputArray[i+3]
-            width = outputArray[i+4]
-            box = []
-            box.append(row)
-            box.append(column)
-            box.append(height)
-            box.append(width)
-            boxes.append(box)
-    print(boxes[0])
-    return tensorflow.convert_to_tensor(boxes)    
     
 from tensorflow.python.ops import array_ops
 def conv2d_3x3(filters):
@@ -431,17 +400,12 @@ def trainModel(train = False, test = False):
     nucleus_detector = tensorflow.estimator.Estimator(
         model_fn = createModel, model_dir=moddir)
     
-    normalizedImages = None
+    normalizedImages = []
     if (train):
-        if (Path('/data/images.npy')).exists():
-            print('hello')
-            normalizedImages = np.asarray(np.load('/data/images.npy')).astype(np.float32)
-            allLabels = np.asarray(np.load('/data/labels.npy')).astype(np.float32)
-            alldims = np.asarray(np.load('/data/dims.npy')).astype(np.int32)
-            print('bye')
-            #normalizedImages = normalizedImages[:80]
-            #allLabels = allLabels[:80]
-            #alldims = alldims[:80]
+        if (Path('images.npy')).exists():
+            normalizedImages = np.asarray(np.load('images.npy')).astype(np.float32)
+            allLabels = np.asarray(np.load('labels.npy')).astype(np.float32)
+            alldims = np.asarray(np.load('dims.npy')).astype(np.int32)
         else : 
             for filename in os.listdir(dataURL):
                 print(filename)
@@ -460,37 +424,11 @@ def trainModel(train = False, test = False):
                     mask = imread(immasks+m)
                     mask = compress(mask)
                     masks.append(mask)
-                    if (first):
-                        print("mask:"+m)
-                        if (len(masks)==1):
-                            print("Testing inside mask loop:")
-                            #print(np.nonzero(imread(immasks+m)))
-                            #animg = Image.fromarray(imread(immasks+m), 'L')
-                            #animg.save(compressionLoc)
-                            
-                    #maskindices = np.nonzero(mask)
-                    #masks.append(maskindices)
                 
                 masksInfo = maskDetails(masks, first)
-                if (first):
-                    print(filename)
-                    print("mask info")
-                    print(masksInfo[0])
                 trainingLabels = trainLabels(masksInfo)
-                if (first):
-                    print("trainingLabels")
-                    print(trainingLabels[0])
                 flattenedLabels = trainingLabels.flatten()
                 #lambda l: [lab for rows in trainingLabels for columns in rows for lab in column]
-                if (first):
-                    print("flattenedLabels")
-                    print(flattenedLabels[0])
-                    print(flattenedLabels[1])
-                    print(flattenedLabels[2])
-                    print(flattenedLabels[3])
-                    print(flattenedLabels[4])
-                    print("after flattened")
-                print("Flatten")
                 processed = []
                 for n in range(0, len(flattenedLabels)):
                     processed.append(flattenedLabels[n])
@@ -502,15 +440,16 @@ def trainModel(train = False, test = False):
             
             l = Normalization.NormalizeWidthHeightForAll(allLabels)
             allLabels = l
-            normalizedImages = reduceInput(allImages)
-            
+            print("hello")
+            normalizedImages = allImages
+            print(normalizedImages[1][0])
             normalizedImages = np.asarray(normalizedImages).astype(np.float32)
             alldims = np.asarray(alldims).astype(np.int32)
             allLabels = np.asarray(allLabels).astype(np.float32)
             
-            np.save('/data/images', normalizedImages)
-            np.save('/data/dims', alldims)
-            np.save('/data/labels', allLabels)
+            np.save('images', normalizedImages)
+            np.save('dims', alldims)
+            np.save('labels', allLabels)
             
         tensors_to_log = {}
         logging_hook = tensorflow.train.LoggingTensorHook(
@@ -573,23 +512,25 @@ def trainModel(train = False, test = False):
         df.to_csv(path_or_buf = 'submission.csv',
                                  header=True,
                                  index=False)
-   # eval_input_fn = tensorflow.estimator.inputs.numpy_input_fn(
-    #    x={"x": testData},
-     #   y=testLabels,
-      #  num_epochs=1,
-       # shuffle=False)
-    
-    #eval_results = mnist_small_classifier.evaluate(input_fn=eval_input_fn)
-    #print(eval_results)
+
 
 def main(unused_argv):
-    trainModel(True, False)
-
-    images = np.load('images.npy')
+    images = (np.load('images.npy'))
     labels = np.load('labels.npy')
     dims = np.load('dims.npy')
     
-    imageio.imwrite('img.png', 255*images[1])
+    images = np.reshape(images, (-1, IMAGE_HEIGHT*IMAGE_WIDTH*3))
+    
+    #json.dump(images.tolist(), codecs.open('images.json', 'w', encoding='utf-8'), separators=(',', ':'), indent=4)
+    #json.dump(labels.tolist(), codecs.open('labels.json', 'w', encoding='utf-8'), separators=(',', ':'), indent=4)
+    #json.dump(dims.tolist(), codecs.open('dims.json', 'w', encoding='utf-8'), separators=(',', ':'), indent=4)
+    
+    #images = np.reshape(images, (-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3))
+
+   # df.to_csv(path_or_buf = 'data.csv', header=True, index=True)
+    trainModel(True, False)
+
+    imageio.imwrite('img.png', images[1])
     filenames = os.listdir(dataURL)
     rUnNorm = np.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
     print("UnNormalize")
