@@ -402,10 +402,13 @@ def trainModel(train = False, test = False):
     
     normalizedImages = []
     if (train):
-        if (Path('images.npy')).exists():
-            normalizedImages = np.asarray(np.load('images.npy')).astype(np.float32)
-            allLabels = np.asarray(np.load('labels.npy')).astype(np.float32)
-            alldims = np.asarray(np.load('dims.npy')).astype(np.int32)
+        if (Path('imagesTotal.npy')).exists():
+            normalizedImages = np.reshape(np.asarray(np.load('imagesTotal.npy')).astype(np.float32), (-1, 256, 256, 3))
+            print(normalizedImages.shape)
+            allLabels = np.reshape(np.asarray(np.load('labelsTotal.npy')).astype(np.float32), (-1, 16,16, 5))
+            print(allLabels.shape)
+            alldims = np.reshape(np.asarray(np.load('dimsTotal.npy')).astype(np.int32), (-1, 3))
+            print(alldims.shape)
         else : 
             for filename in os.listdir(dataURL):
                 print(filename)
@@ -463,7 +466,7 @@ def trainModel(train = False, test = False):
 
         nucleus_detector.train(
             input_fn=train_input_fn,
-            steps=20000,
+            steps=200000,
             hooks=[logging_hook])
      
     if (test):   
