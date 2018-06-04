@@ -93,24 +93,20 @@ def compress(img):
     img = resize(img, (256, 256))
     return img
     
-def main(unused_argv):
-    images = (np.load('images.npy'))
-    labels = np.load('labels.npy')
-    dims = np.load('dims.npy')
+#def main(unused_argv):
+    #images = (np.load('images.npy'))
+    #labels = np.load('labels.npy')
+    #dims = np.load('dims.npy')
     
-    firstTwoImages = [compress(images[0]), compress(images[1])]
+    #firstTwoImages = [compress(images[0]), compress(images[1])]
     #images = np.reshape(firstTwoImages, (-1, 256*256*3))
     #labels = labels[0:2]
     #dims = dims[0:2]
-    print("Images")
-    print(images.shape)
-    print("Labels")
-    print(labels.shape)
-    totalInput, totalLabels, totalDims = returnAugmentationForList(images, labels, dims)
-    print(totalInput.shape)
-    np.save('imagesTotal', totalInput.flatten())
-    np.save('labelsTotal', totalLabels.flatten())
-    np.save('dimsTotal', totalDims.flatten())
+    #totalInput, totalLabels, totalDims = returnAugmentationForList(images, labels, dims)
+    #print(totalInput.shape)
+    #np.save('imagesTotal', totalInput.flatten())
+    #np.save('labelsTotal', totalLabels.flatten())
+    #np.save('dimsTotal', totalDims.flatten())
     
     
-tensorflow.app.run(main)
+#tensorflow.app.run(main)
