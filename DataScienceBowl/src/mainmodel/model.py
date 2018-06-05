@@ -23,7 +23,7 @@ IMAGE_WIDTH = 256
 BOX_HEIGHT = 16
 BOX_WIDTH = 16
 
-CERTAINTY_THRESHOLD = 0.99
+CERTAINTY_THRESHOLD = 0.95
 
 def compress(img):
     img = resize(img, (IMAGE_HEIGHT, IMAGE_WIDTH))
@@ -123,7 +123,6 @@ def conv2d_transpose_2x2(filters):
 def concatenate(branches):
     return array_ops.concat(branches, 3)
 
-    
 def createModel(features, labels, mode):
     #HEIGHT*WIDTH*4
     input_layer = tensorflow.reshape(features["x"], [-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3])
@@ -227,6 +226,11 @@ def createModel(features, labels, mode):
         mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
 
 
+def hitOrMiss(flag):
+    if flag > CERTAINTY_THRESHOLD:
+        return True
+    return False
+
 def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
     #number of rows
     refBoxRows = IMAGE_HEIGHT/BOX_HEIGHT
@@ -243,7 +247,7 @@ def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
         if boxFlag > largest:
             largest = boxFlag
             largestIndex = boxIndex
-        if  (mode == 'MINIMUM_THRESHOLD' and boxFlag > CERTAINTY_THRESHOLD) or (mode == 'LARGEST' and (boxIndex + 6 > len(predictionsForOneImage))) :
+        if  (mode == 'MINIMUM_THRESHOLD' and hitOrMiss(boxFlag)) or (mode == 'LARGEST' and (boxIndex + 6 > len(predictionsForOneImage))) :
             boxVerLoc = predictionsForOneImage[boxIndex+1]
             boxHorLoc = predictionsForOneImage[boxIndex+2]
             boxHeight = predictionsForOneImage[boxIndex+3]
@@ -273,13 +277,102 @@ def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
                 width = (255.0 - horCoord) * 2.0
             
             boxVals = []
+            boxVals.append(boxFlag)
             boxVals.append(verCoord)
             boxVals.append(horCoord)
             boxVals.append(height)
             boxVals.append(width)
             boxes.append(boxVals)
     
-    return boxes
+    def coords(box):
+        x1 = box[2] - (box[4]/2)
+        x2 = box[2] + (box[4]/2)
+        y1 = box[1] - (box[3]/2)
+        y2 = box[1] + (box[3]/2)
+        return x1, x2, y1, y2
+    
+    def getOverLap(start1, end1, start2, end2):
+        startOverLap = -1
+        endOverLap = -1
+        if start1 >= start2 and start1 <= end2:
+            startOverLap = start1
+        elif start2 >= start1 and start2 <= end1:
+            startOverLap = start2
+        if startOverLap == -1:
+            return 0
+        if end1 <= end2:
+            endOverLap = end1
+        else:
+            endOverLap = end2
+        return endOverLap - startOverLap
+    
+    boxResults = []
+    removeIndices = []
+    checkedIndices = []
+    for i in range(0, len(boxes)):
+        removeIndices.append(False)
+        checkedIndices.append(False)
+    while True:
+        numBoxes = len(boxes)
+        checked = True
+        maxBox = None
+        maxBoxIndex = 0
+        for i in range(0, numBoxes):
+            box1 = boxes[i]
+            if (maxBox is None or box1[0] > maxBox[0]) and removeIndices[i] == False and checkedIndices[i] == False:
+                maxBox = box1
+                print("DFHIODHFIOHDI")
+                maxBoxIndex = i
+                checked = False
+                
+        if checked == True:
+            break
+        checkedIndices[maxBoxIndex] = True
+        x11, x12, y11, y12 = coords(maxBox)
+        print(maxBox[0])
+        print(x11)
+        print(x12)
+        print(y11)
+        print(y12)
+        
+        i = 0
+        for i in range(0, numBoxes):
+            if i == maxBoxIndex or removeIndices[i] == True or checkedIndices[i] == True:
+                continue
+            print("here")
+            box1 = boxes[i]
+            print(box1[0])
+            print(maxBox[0])
+            if box1[0] < maxBox[0]:
+                print("there")
+                x21, x22, y21, y22 = coords(box1)
+                print(maxBox[0])
+                print(x21)
+                print(x22)
+                print(y21)
+                print(y22)
+                xLap = getOverLap(x11, x12, x21, x22)
+                yLap = getOverLap(y11, y12, y21, y22)
+                lap = xLap*yLap
+                IOU = lap / (maxBox[3]*maxBox[4] + box1[3]*box1[4] - lap)
+                print("lap")
+                print(maxBox[3]*maxBox[4])
+                print(box1[3]*box1[4])
+                print(xLap)
+                print(yLap)
+                print(lap)
+                print("IOU")
+                print(IOU)
+                if IOU > 0.1:
+                    removeIndices[i] = True
+                    
+    for i in range(0, len(boxes)):
+        if not removeIndices[i]:
+            box = boxes[i]
+            box = box[1:]
+            boxResults.append(box)
+            
+    return boxResults
 
 def generateOutput(imgNames, imgPreds, testDims):
     names = []
@@ -582,20 +675,15 @@ def main(unused_argv):
 
    # df.to_csv(path_or_buf = 'data.csv', header=True, index=True)
     #trainModel(True, False)
-    trainModel(False, True)
+    #trainModel(False, True)
 
     #imageio.imwrite('img.png', images[1])
     filenames = os.listdir(dataURL)
     rUnNorm = np.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
-    print("UnNormalize")
-    print(rUnNorm[0][0])
     rUnNorm = Normalization.unNormalizeAll(rUnNorm)
     rUnNorm = np.reshape(rUnNorm, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
-    print(rUnNorm[0][0])
-    print("Normalize")
     normed = Normalization.NormalizeWidthHeightForAll(rUnNorm)
     normed = np.reshape(normed, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
-    print(normed[0][0])
     #rUnNorm = np.reshape(rUnNorm, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
 
     #trainModel('TRAIN')
@@ -676,7 +764,7 @@ def main(unused_argv):
            0.0, 0.0, 0.0, 0.0, 0.0,
            0.0, 0.0, 0.0, 0.0, 0.0,
            1.0, 0.4, 0.4, 0.1, 0.2,
-           1.0, 0.75, 0.0, 0.1, 0.2,
+           0.99, 0.75, 0.0, 0.1, 0.2,
            0.0, 0.0, 0.0, 0.0, 0.0,
            0.0, 0.0, 0.0, 0.0, 0.0,
            0.0, 0.0, 0.0, 0.0, 0.0,
@@ -949,7 +1037,7 @@ def main(unused_argv):
     testDims.append((1024, 512))
     testDims.append((512, 256))
     print(processResults(img3))
-    print(generateOutput(['ImageName', 'ImageName2', 'ImageName3'], imgs, testDims))
+    #print(generateOutput(['ImageName', 'ImageName2', 'ImageName3'], imgs, testDims))
     
     
     
