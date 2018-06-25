@@ -3,11 +3,10 @@ import os
 import numpy as np
 import pandas
 
-IMAGE_HEIGHT = 256
-IMAGE_WIDTH = 256
-
-BOX_HEIGHT = 16
-BOX_WIDTH = 16
+from mainmodel import BOX_HEIGHT as BOX_HEIGHT
+from mainmodel import BOX_WIDTH as BOX_WIDTH
+from mainmodel import IMAGE_HEIGHT as IMAGE_HEIGHT
+from mainmodel import IMAGE_WIDTH as IMAGE_WIDTH
 
 def NormalizeWidthHeight(labels):
     #1) Find the mean of all width/heights.

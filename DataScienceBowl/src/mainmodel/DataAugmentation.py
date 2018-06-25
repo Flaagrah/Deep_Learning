@@ -1,5 +1,6 @@
-import numpy as np
 from skimage.transform import resize
+
+import numpy as np
 import tensorflow as tensorflow
 import imageio
 
