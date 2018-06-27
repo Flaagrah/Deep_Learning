@@ -79,14 +79,9 @@ def createModel(features, labels, mode):
     c15 = tensorflow.layers.Conv2D(1, (1, 1)) (c9)
     c15 = tensorflow.layers.Flatten()(c15)
     dense = tensorflow.layers.Dense(units = 1280)(c15)
-    print(dense.shape)
-    #, training=mode == tensorflow.estimator.ModeKeys.TRAIN
     dropout = tensorflow.layers.Dropout(rate=0.2)(dense)
     
     preds = tensorflow.layers.Dense(units = int( (IMAGE_HEIGHT/BOX_HEIGHT) * (IMAGE_WIDTH/BOX_WIDTH) * 5 ), activation=tensorflow.nn.sigmoid, kernel_initializer=tensorflow.contrib.layers.xavier_initializer() )(dropout)
-    print("h")
-    print(preds.shape)
-    print('J')
     predictions = {
         "preds": preds,
         #"boxes": convertOutput(logits)
@@ -99,10 +94,7 @@ def createModel(features, labels, mode):
     #How are the preds reshaped.
     reshapedPreds = tensorflow.reshape(preds, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
     reshapedLabels = tensorflow.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
-    print("label shape:")
-    print(reshapedLabels.shape)
-    print("logit shape:")
-    print(reshapedPreds.shape)
+    
     #Cost calculation taken from https://stackoverflow.com/questions/48938120/make-tensorflow-ignore-values
     #This excludes bounding boxes that are 
     mask = tensorflow.tile(reshapedLabels[:, :, :, 0:1], [1, 1, 1, 5]) #repeating the first item 5 times
@@ -114,10 +106,13 @@ def createModel(features, labels, mode):
 
     terms = tensorflow.multiply(full_mask, tensorflow.to_float(tensorflow.subtract(reshapedLabels, reshapedPreds, name="loss")))
     
+    #Number of bounding boxes in the prediction.
     num_boxes = tensorflow.cast(tensorflow.count_nonzero(mask_first), dtype=tensorflow.float32)
     
+    #Number of segments in the image.
     num_segments = tensorflow.cast(tensorflow.size(input = mask_first, out_type = tensorflow.float32), dtype=tensorflow.float32)
     
+    #Number of terms that are counted (total output size minus x, y, w, h of segments with no bounding box).
     non_zeros = tensorflow.add(num_segments, tensorflow.multiply(num_boxes, 4.0))
     
     #non_zeros = tensorflow.cast(tensorflow.count_nonzero(full_mask), dtype=tensorflow.float32)
@@ -149,13 +144,9 @@ def trainModel(train = False, test = False):
     allTestDims = []
     allTestImages = []
     allTestImageNames = []
-    first = True
-    skip = False
-    skip2 = False
     boxRows = int(IMAGE_HEIGHT/BOX_HEIGHT)
     boxColumns = int(IMAGE_WIDTH/BOX_WIDTH)
-    mean = None
-    sd = None
+
     
     moddir = "/tmp/DataScienceBowl"
     if Path("/output").exists() :
@@ -165,16 +156,17 @@ def trainModel(train = False, test = False):
     
     normalizedImages = []
     if (train):
+        #Create training set if it doesn't already exist.
         if not Path('imagesTrainTotal.npy').exists():
             PreProcessing.createInput(True)
         normalizedImages = np.reshape(np.asarray(np.load('imagesTrainTotal.npy')).astype(np.float32), (-1, 256, 256, 3))
-        normalizedImages = normalizedImages[0:7000, :, :, :]
+        #normalizedImages = normalizedImages[0:7000, :, :, :]
         print(normalizedImages.shape)
         allLabels = np.reshape(np.asarray(np.load('labelsTrainTotal.npy')).astype(np.float32), (-1, 16,16, 5))
-        allLabels = allLabels[0:7000, :, :, :]
+        #allLabels = allLabels[0:7000, :, :, :]
         print(allLabels.shape)
         allDims = np.reshape(np.asarray(np.load('dimsTrainTotal.npy')).astype(np.int32), (-1, 3))
-        allDims = allDims[0:7000, :]
+        #allDims = allDims[0:7000, :]
         print(allDims.shape)
             
             
@@ -194,6 +186,7 @@ def trainModel(train = False, test = False):
             hooks=[logging_hook])
      
     if (test):
+        #Create testing set.
         if not Path('imagesTest.npy').exists():
             PreProcessing.createInput(False)
         
@@ -228,12 +221,7 @@ def trainModel(train = False, test = False):
         unNormal = Normalization.unNormalizeAll(reshapePreds)
         unNormal = np.reshape(unNormal, (-1, boxRows*boxColumns*5))
         names, encoding = PostProcessing.generateOutput(allTestImageNames, unNormal, allTestDims)
-       # for i in range(0, len(names)):
-        #    fname = names[i]
-         #   extIndex = len(fname) - 4
-          #  names[i] = (fname[0:extIndex])
-        print(names[0])
-        print(encoding[0])
+
         df = pandas.read_csv('stage2_sample_submission_final.csv')
         #sub = pandas.DataFrame()
 

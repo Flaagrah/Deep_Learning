@@ -3,14 +3,15 @@ from mainmodel import BOX_WIDTH as BOX_WIDTH
 from mainmodel import IMAGE_HEIGHT as IMAGE_HEIGHT
 from mainmodel import IMAGE_WIDTH as IMAGE_WIDTH
 
-
-CERTAINTY_THRESHOLD = 0.95
+#Value that the flag has to reach in order to be certain of a hit within the segment.
+CERTAINTY_THRESHOLD = 0.50
 
 def hitOrMiss(flag):
     if flag > CERTAINTY_THRESHOLD:
         return True
     return False
 
+#Receives predictions in format [y, x, h, w]
 def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
     #number of rows
     refBoxRows = IMAGE_HEIGHT/BOX_HEIGHT
@@ -27,6 +28,7 @@ def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
         if boxFlag > largest:
             largest = boxFlag
             largestIndex = boxIndex
+        #Create box if the flag predicts that there is a hit in the segment.
         if  (mode == 'MINIMUM_THRESHOLD' and hitOrMiss(boxFlag)) or (mode == 'LARGEST' and (boxIndex + 6 > len(predictionsForOneImage))) :
             boxVerLoc = predictionsForOneImage[boxIndex+1]
             boxHorLoc = predictionsForOneImage[boxIndex+2]
@@ -64,6 +66,7 @@ def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
             boxVals.append(width)
             boxes.append(boxVals)
     
+    #Getting min and max x, y values.
     def coords(box):
         x1 = box[2] - (box[4]/2)
         x2 = box[2] + (box[4]/2)
@@ -71,6 +74,7 @@ def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
         y2 = box[1] + (box[3]/2)
         return x1, x2, y1, y2
     
+    #Get the overlap of two line segments.
     def getOverLap(start1, end1, start2, end2):
         startOverLap = -1
         endOverLap = -1
@@ -92,6 +96,8 @@ def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
     for i in range(0, len(boxes)):
         removeIndices.append(False)
         checkedIndices.append(False)
+        
+    #IOU removal.
     while True:
         numBoxes = len(boxes)
         checked = True
@@ -99,53 +105,35 @@ def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
         maxBoxIndex = 0
         for i in range(0, numBoxes):
             box1 = boxes[i]
+            #If the box has not been removed or checked for overlap, then this is the next box to examine.
+            #Find the box with the largest hit probability.
+            #This algorithm is inefficient, but it doesn't matter since there are a fixed number of segments.
+            #The performance will always be O(1).
             if (maxBox is None or box1[0] > maxBox[0]) and removeIndices[i] == False and checkedIndices[i] == False:
                 maxBox = box1
-                #print("DFHIODHFIOHDI")
                 maxBoxIndex = i
                 checked = False
-                
+        #End the IOU if all boxes have been checked.
         if checked == True:
             break
         checkedIndices[maxBoxIndex] = True
         x11, x12, y11, y12 = coords(maxBox)
-        #print(maxBox[0])
-        #print(x11)
-        #print(x12)
-        #print(y11)
-        #print(y12)
         
         i = 0
         for i in range(0, numBoxes):
             if i == maxBoxIndex or removeIndices[i] == True or checkedIndices[i] == True:
                 continue
-            #print("here")
             box1 = boxes[i]
-            #print(box1[0])
-            #print(maxBox[0])
-            if box1[0] < maxBox[0]:
-                #print("there")
+            if box1[0] <= maxBox[0]:
                 x21, x22, y21, y22 = coords(box1)
-                #print(maxBox[0])
-                #print(x21)
-                #print(x22)
-                #print(y21)
-                #print(y22)
                 xLap = getOverLap(x11, x12, x21, x22)
                 yLap = getOverLap(y11, y12, y21, y22)
                 lap = xLap*yLap
                 IOU = lap / (maxBox[3]*maxBox[4] + box1[3]*box1[4] - lap)
-                #print("lap")
-                #print(maxBox[3]*maxBox[4])
-                #print(box1[3]*box1[4])
-                #print(xLap)
-                #print(yLap)
-                #print(lap)
-                #print("IOU")
-                #print(IOU)
+                #If the IOU is greater than a certain amount, then remove the box.
                 if IOU > 0.2:
                     removeIndices[i] = True
-                    
+    #Remove all of the         
     for i in range(0, len(boxes)):
         if not removeIndices[i]:
             box = boxes[i]
@@ -154,7 +142,7 @@ def processResults(predictionsForOneImage, mode = 'MINIMUM_THRESHOLD'):
             
     return boxResults
 
-
+#Generate the output from the predictions.
 def generateOutput(imgNames, imgPreds, testDims):
     names = []
     encoding = []
@@ -163,11 +151,15 @@ def generateOutput(imgNames, imgPreds, testDims):
         dims = testDims[i]
         name = imgNames[i]
         
+        #Get the box results.
         boxResults = processResults(img)
         if len(boxResults) == 0:
             boxResults = processResults(img, 'LARGEST')
+        #Print the boxes for testing purposes.
         print(name)
         print(len(boxResults))
+        print(boxResults)
+        
         verDim = dims[0]
         horDim = dims[1]
         
@@ -203,13 +195,14 @@ def generateOutput(imgNames, imgPreds, testDims):
                 
                 pair = [topPoint, bottomPoint]
                 addSegment(pair, traversedPixels, newAdditions)
+            #Encode the run length.
             for a in range(0, len(newAdditions)):
                 newAdd = newAdditions[a]
                 newTop = newAdd[0]
                 newBottom = newAdd[1]
                 height = newBottom - newTop + 1
                 runLength += ' ' + str(newTop) + ' ' + str(height)
-                                        
+                                       
             if len(runLength) > 1:
                 runLength = runLength[1:]
             elif len(runLength) == 1 or len(runLength)==0:
@@ -218,6 +211,7 @@ def generateOutput(imgNames, imgPreds, testDims):
                 names.append(name)
                 encoding.append(runLength)
                 added = True
+        #If there are no hits, hit the first pixel just in case the evaluation demands it.
         if not added:
             names.append(name)
             encoding.append('1 1')

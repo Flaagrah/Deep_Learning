@@ -66,6 +66,7 @@ def compress(img):
 
 #Given a list of masks and the coordinates, returns a bounding box for each yolo box.
 #This represents the y label for a single image example in the dataset.
+#Return labels for segment in format [flag, y, x, h, w]
 def trainLabels(maskInfo):
     boxRows = int(BOX_HEIGHT/BOX_HEIGHT)
     boxColumns = int(BOX_WIDTH/BOX_WIDTH)
@@ -97,7 +98,7 @@ def trainLabels(maskInfo):
                 boxes[h][w][4]=0.0
     return boxes
 
-
+#Creates the input for the model. In format [-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
 def createInput(isTrainingInput):
     allLabels = []
     allImages = []
@@ -113,19 +114,23 @@ def createInput(isTrainingInput):
         #imagefile = imageio.imread(imdir+os.listdir(imdir)[0])
         img = imread(imdir+os.listdir(imdir)[0])
         allDims.append((img.shape[0], img.shape[1], 3))
+        #Drop the 4th dimension if it exists. Only need RGB
         if (len(img.shape) == 3 and img.shape[2] == 4):
             img = img[:, :, 0:3]
+        #Add 2nd and 3rd dimension if black and white
         elif len(img.shape) == 2:
             print("here")
             tmp = np.reshape(img, (img.shape[0], img.shape[1], 1))
             img = np.concatenate((tmp, tmp), axis=2)
             img = np.concatenate((img, tmp), axis=2)
             print(img.shape)
-           
+        
+        #Compress image to standard size. (IMAGE_HEIGHT, IMAGE_WIDTH))
         img = compress(img)
         allImages.append(img)
         allImageNames.append(filename)
         masks = []
+        #If it's the training input, also create the labels.
         if isTrainingInput:
             for m in os.listdir(immasks):
                 #mask = imageio.imread(immasks+m)
@@ -144,7 +149,7 @@ def createInput(isTrainingInput):
             first=False
         #Drop the 4th dimension. https://www.kaggle.com/c/data-science-bowl-2018/discussion/47750
         #Maybe need to keep it later.
-    
+    #Normalize the labels.
     if not allLabels == [] :
         l = Normalization.NormalizeWidthHeightForAll(allLabels)
         allLabels = l
@@ -153,7 +158,7 @@ def createInput(isTrainingInput):
     normalizedImages = np.asarray(allImages).astype(np.float32)
     allDims = np.asarray(allDims).astype(np.int32)
     allLabels = np.asarray(allLabels).astype(np.float32)
-    
+    #Save training input in file
     if (isTrainingInput):
         imgFileName = 'imagesTrain'
         labFileName = 'labelsTrain'
@@ -162,9 +167,7 @@ def createInput(isTrainingInput):
         np.save(dimFileName, allDims)
         np.save(labFileName, allLabels)
         totalInput, totalLabels, totalDims = DataAugmentation.returnAugmentationForList(normalizedImages, allLabels, allDims)
-        #imgFileName.append('Total')
-        #dimFileName.append('Total')
-        #labFileName.append('Total')
+        
         np.save(imgFileName+'Total', totalInput)
         np.save(dimFileName+'Total', totalDims)
         np.save(labFileName+'Total', totalLabels)

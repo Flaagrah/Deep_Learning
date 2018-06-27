@@ -8,10 +8,8 @@ from mainmodel import BOX_WIDTH as BOX_WIDTH
 from mainmodel import IMAGE_HEIGHT as IMAGE_HEIGHT
 from mainmodel import IMAGE_WIDTH as IMAGE_WIDTH
 
+#Normalize the width and height by square rooting. The purpose is to make smaller values more visible.
 def NormalizeWidthHeight(labels):
-    #1) Find the mean of all width/heights.
-    #2) Find the standard deviation.
-    #3) Calculate sd for each width/height.
     
     rLabels = np.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
     widthHeight = rLabels[:,:,:,3:]
@@ -33,6 +31,7 @@ def NormalizeWidthHeightForAll(allLabels):
     
     return np.asarray(normLabels).astype(np.float32)
 
+#Undo normalization.
 def unNormalize(labels):
     widthHeight = labels[:,:,3:]
     otherLabels = labels[:,:,0:3]
