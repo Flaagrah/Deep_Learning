@@ -15,6 +15,7 @@ from movieReviewModels import max_length
 from movieReviewModels import w2v
 from movieReviewModels import embedding_size
 from dask.bag import text
+from gensim.models.word2vec import LineSentence
 
 
 #embedding = "movieReviewData/GoogleNews-vectors-negative300.bin"
@@ -43,6 +44,8 @@ threeIndex = 3
 fourIndex = 4
 
 b_size = 1
+
+embedding_array = []
 
 def getWordFromFile(file):
     c = file.read()
@@ -100,18 +103,22 @@ def importEmbeddings():
     print()
 
 def createModel(features, labels, mode):
-    
     embedding_size = w2v.wv.vector_size
-    text = features["x"]
-    used = tf.sign(text)
+    W = tf.constant(embedding_array, name="W")
+    print(features)
+    embedding_vectors = tf.nn.embedding_lookup(W, tf.cast(features, tf.int32))
+    
+    print("after embedding")
+    used = tf.sign(embedding_vectors)
+    print("used")
     length = tf.reduce_sum(used, 1)
+    print("hello")
     length = tf.cast(length, tf.int32)
+    print("length")
     
     #word_embeddings = tf.Variable(tf.random_uniform([len(w2v.wv.vocab), embedding_size], -1.0, 1.0))
-    embedding_vectors = tf.nn.embedding_lookup(w2v.wv, text)
-    
     lstm_cell = tf.nn.rnn_cell.LSTMCell(embedding_size)
-    outputs, final_state = tf.nn.dynamic_rnn(lstm_cell, embedding_vectors, sequence_length=length)
+    outputs, final_state = tf.nn.dynamic_rnn(lstm_cell, embedding_vectors, sequence_length=length, dtype=tf.float32)
     dropout = tf.nn.dropout(outputs, keep_prob=0.1)
     logits = tf.layers.dense(dropout, 3, activation=tf.nn.sigmoid)
     
@@ -165,12 +172,13 @@ def model3(allStatements, allThreeLabels):
     
     train_statements, eval_statements, test_statements = splitData(allStatements)
     train_labels, eval_labels, test_labels = splitData(allThreeLabels)
-    
+    print("train")
+    print(train_statements[0])
     tensors_to_log = {}
     logging_hook = tf.train.LoggingTensorHook(
         tensors=tensors_to_log, every_n_iter=50)
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
-        x={"x":train_statements},
+        x=train_statements,
         y=train_labels,
         batch_size=1,
         num_epochs=None,
@@ -182,7 +190,7 @@ def model3(allStatements, allThreeLabels):
         hooks=[logging_hook])
     
     eval_input_fn = tf.estimator.inputs.numpy_input_fn(
-        x={"x": eval_statements},
+        x=eval_statements,
         y=eval_labels,
         num_epochs=1,
         shuffle=False)
@@ -209,20 +217,33 @@ def shuffleData(inputs, labels):
 def main(unused):
     #nltk.download('punkt')
     #nltk.download("movie_reviews")
+    s = [['unk']]
+    w2v.build_vocab(sentences=s, min_count=1, update=True)
+    
+    global embedding_array
+    vocab_size = len(w2v.wv.vocab)
+    for i in range(0, vocab_size):
+        word = w2v.wv.index2word[i]
+        embedding_array.append(w2v.wv[word])
+    embedding_array = np.array(embedding_array, np.float32)
+    
+    print(embedding_array[0])
+    #print(w2v.wv.vocab["unk"])
+    #print(w2v.wv['unk'])
+    #w2v.wv.syn0[w2v.vocab['unk'].index] = []
     authorsInfo = importData()
     
     allStatements = np.asarray(getAuthorInfo(authorsInfo, lineIndex))
     allThreeLabels = np.asarray(getAuthorInfo(authorsInfo, threeIndex))
     #print(allStatements[0])
     allStatements, allThreeLabels = shuffleData(allStatements, allThreeLabels)
-    print(w2v.wv["great"])
-    print(allStatements[2000])
-    allStatements = preprocess_text.preProcessInput(allStatements)
-    print(allStatements[2000])
-    allThreeLabels = preprocess_text.preProcess3Labels(allThreeLabels)
-    print(allThreeLabels[2000])
     
-    #model3(allStatements, allThreeLabels)
+    
+    allStatements = preprocess_text.preProcessInput(allStatements)
+    allThreeLabels = preprocess_text.preProcess3Labels(allThreeLabels)
+    
+    
+    model3(allStatements, allThreeLabels)
     #if ("asdfsa" in w2v.wv.vocab):
      #   print(w2v.wv["asdfsa"])
     #if ("great" in w2v.wv.vocab):
