@@ -11,9 +11,23 @@ def preProcessInput(passages):
     print(passages[0])
     #indices = [[word if (word in w2v.wv.vocab) else 'unk' for word in passage] for passage in passages]
     indices = [[w2v.wv.vocab[word].index if (word in w2v.wv.vocab) else w2v.wv.vocab['unk'].index for word in passage] for passage in passages]
-    print(indices[0])
-    return indices
+    unknownIndex = w2v.wv.vocab['eos'].index
+    
+    lengths = []
+    for i in range(0, len(indices)):
+        l = len(indices[i])
+        lengths.append(l)
+        if l < max_length:
+            padding = np.ones(max_length-l, np.float32) * unknownIndex
+            indices[i] = np.append(indices[i], padding)
+    
+    indices = np.array(indices)
+    lengths = np.array(lengths)
+    print("indices")
+    print(np.array(indices).shape)  
+    return indices, lengths
 
 def preProcess3Labels(labelList):
-    newLabels = np.eye(3)[np.array(labelList).astype(np.int32)]
-    return newLabels
+    #newLabels = np.eye(3)[np.array(labelList).astype(np.int32)]
+    
+    return np.array(labelList).astype(np.int32)

@@ -105,26 +105,27 @@ def importEmbeddings():
 def createModel(features, labels, mode):
     embedding_size = w2v.wv.vector_size
     W = tf.constant(embedding_array, name="W")
-    print(features)
-    embedding_vectors = tf.nn.embedding_lookup(W, tf.cast(features, tf.int32))
+    embedding_vectors = tf.nn.embedding_lookup(W, tf.cast(features["x"], tf.int32))
     
     print("after embedding")
-    used = tf.sign(embedding_vectors)
+    print(embedding_vectors)
+    #used = tf.sign(tf.reduce_max(tf.abs(embedding_vectors), 2))
     print("used")
-    length = tf.reduce_sum(used, 1)
+    #length = tf.reduce_sum(used, 1)
     print("hello")
-    length = tf.cast(length, tf.int32)
+    length = tf.cast(features["lengths"], tf.int32)
     print("length")
+    print(length)
     
     #word_embeddings = tf.Variable(tf.random_uniform([len(w2v.wv.vocab), embedding_size], -1.0, 1.0))
     lstm_cell = tf.nn.rnn_cell.LSTMCell(embedding_size)
     outputs, final_state = tf.nn.dynamic_rnn(lstm_cell, embedding_vectors, sequence_length=length, dtype=tf.float32)
-    dropout = tf.nn.dropout(outputs, keep_prob=0.1)
+    dropout = tf.nn.dropout(final_state.h, keep_prob=0.1)
     logits = tf.layers.dense(dropout, 3, activation=tf.nn.sigmoid)
     
     predictions = {"probabilities": tf.nn.softmax(logits, name="softmax_result")}
     
-    onehot_labels = tf.one_hot(indices=tf.cast(labels, tf.int32), depth=10)
+    onehot_labels = tf.one_hot(indices=tf.cast(labels, tf.int32), depth=3)
     loss = tf.losses.softmax_cross_entropy(onehot_labels=onehot_labels, logits=logits)
     optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
     
@@ -147,7 +148,7 @@ def getAuthorInfo(authorsInfo, i):
     allEntries = allEntries + authorsInfo[2][i][:]
     allEntries = allEntries + authorsInfo[3][i][:]
     return allEntries
-
+    
 def splitData(data):
     l = len(data)
     train_data = data[0:int(l * 0.8)]
@@ -157,6 +158,7 @@ def splitData(data):
     train_data = np.asarray(train_data)#convertToArray(train_data)
     eval_data = np.asarray(eval_data)#convertToArray(eval_data)
     test_data = np.asarray(test_data)#convertToArray(test_data)
+    
     return train_data, eval_data, test_data
 
 def convertToArray(list2DToConvert):
@@ -165,20 +167,22 @@ def convertToArray(list2DToConvert):
         np.concatenate((newArray , np.asarray(entry)))
     return newArray
 
-def model3(allStatements, allThreeLabels):
+def model3(allStatements, allThreeLabels, statementLengths):
     moddir = "../../savedModels/MovieReviewSentiments"
     sentimentClassifier = tf.estimator.Estimator(model_fn = createModel, model_dir = moddir)
     
     
-    train_statements, eval_statements, test_statements = splitData(allStatements)
+    train_statements, eval_statements, test_statements= splitData(allStatements)
     train_labels, eval_labels, test_labels = splitData(allThreeLabels)
+    train_lengths, eval_lengths, test_lengths = splitData(statementLengths)
     print("train")
     print(train_statements[0])
     tensors_to_log = {}
+    
     logging_hook = tf.train.LoggingTensorHook(
         tensors=tensors_to_log, every_n_iter=50)
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
-        x=train_statements,
+        x={"x": train_statements, "lengths": train_lengths},
         y=train_labels,
         batch_size=1,
         num_epochs=None,
@@ -190,7 +194,7 @@ def model3(allStatements, allThreeLabels):
         hooks=[logging_hook])
     
     eval_input_fn = tf.estimator.inputs.numpy_input_fn(
-        x=eval_statements,
+        x={"x": eval_statements, "lengths": eval_lengths},
         y=eval_labels,
         num_epochs=1,
         shuffle=False)
@@ -219,6 +223,8 @@ def main(unused):
     #nltk.download("movie_reviews")
     s = [['unk']]
     w2v.build_vocab(sentences=s, min_count=1, update=True)
+    s = [['eos']]
+    w2v.build_vocab(sentences=s, min_count=1, update=True)
     
     global embedding_array
     vocab_size = len(w2v.wv.vocab)
@@ -228,6 +234,7 @@ def main(unused):
     embedding_array = np.array(embedding_array, np.float32)
     
     print(embedding_array[0])
+    print(embedding_array.shape)
     #print(w2v.wv.vocab["unk"])
     #print(w2v.wv['unk'])
     #w2v.wv.syn0[w2v.vocab['unk'].index] = []
@@ -239,11 +246,11 @@ def main(unused):
     allStatements, allThreeLabels = shuffleData(allStatements, allThreeLabels)
     
     
-    allStatements = preprocess_text.preProcessInput(allStatements)
+    allStatements, allLengths = preprocess_text.preProcessInput(allStatements)
     allThreeLabels = preprocess_text.preProcess3Labels(allThreeLabels)
     
     
-    model3(allStatements, allThreeLabels)
+    model3(allStatements, allThreeLabels, allLengths)
     #if ("asdfsa" in w2v.wv.vocab):
      #   print(w2v.wv["asdfsa"])
     #if ("great" in w2v.wv.vocab):
@@ -256,5 +263,5 @@ def main(unused):
     
     
 if __name__ == '__main__':
-   # tf.logging.set_verbosity(tf.logging.INFO)
+    tf.logging.set_verbosity(tf.logging.INFO)
     tf.app.run(main)
