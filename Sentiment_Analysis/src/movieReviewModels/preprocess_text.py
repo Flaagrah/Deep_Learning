@@ -16,10 +16,13 @@ def preProcessInput(passages):
     lengths = []
     for i in range(0, len(indices)):
         l = len(indices[i])
-        lengths.append(l)
         if l < max_length:
             padding = np.ones(max_length-l, np.float32) * unknownIndex
             indices[i] = np.append(indices[i], padding)
+        else:
+            indices[i] = indices[i][0:max_length]
+            l = max_length
+        lengths.append(len(indices[i]))
     
     indices = np.array(indices)
     lengths = np.array(lengths)

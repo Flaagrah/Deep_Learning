@@ -120,14 +120,19 @@ def createModel(features, labels, mode):
     #word_embeddings = tf.Variable(tf.random_uniform([len(w2v.wv.vocab), embedding_size], -1.0, 1.0))
     lstm_cell = tf.nn.rnn_cell.LSTMCell(embedding_size)
     outputs, final_state = tf.nn.dynamic_rnn(lstm_cell, embedding_vectors, sequence_length=length, dtype=tf.float32)
-    dropout = tf.nn.dropout(final_state.h, keep_prob=0.1)
-    logits = tf.layers.dense(dropout, 3, activation=tf.nn.sigmoid)
+    dropout = tf.nn.dropout(final_state.h, keep_prob=0.9)
+    logits = tf.layers.dense(inputs=dropout, units=3)
     
-    predictions = {"probabilities": tf.nn.softmax(logits, name="softmax_result")}
+    predictions = {
+        "scores": tf.argmax(input=logits, axis=1),
+        "probabilities": tf.nn.softmax(logits, name="softmax_result")}
     
-    onehot_labels = tf.one_hot(indices=tf.cast(labels, tf.int32), depth=3)
-    loss = tf.losses.softmax_cross_entropy(onehot_labels=onehot_labels, logits=logits)
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
+    print('labels')
+    print(tf.cast(labels, tf.int32))
+    print('logits')
+    print(logits)
+    loss = tf.losses.sparse_softmax_cross_entropy(labels=tf.cast(labels, tf.int32), logits=logits)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.001, beta1=0.9999, beta2=0.999999)
     
     if mode == tf.estimator.ModeKeys.TRAIN:
         train_op = optimizer.minimize(loss=loss, global_step=tf.train.get_global_step())
@@ -135,7 +140,7 @@ def createModel(features, labels, mode):
     if mode == tf.estimator.ModeKeys.EVAL:
         eval_metric_ops = {
             "accuracy": tf.metrics.accuracy(
-                labels=labels, predictions=predictions["classes"])}
+                labels=labels, predictions=predictions["scores"])}
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
@@ -151,14 +156,15 @@ def getAuthorInfo(authorsInfo, i):
     
 def splitData(data):
     l = len(data)
+    print(l)
     train_data = data[0:int(l * 0.8)]
     eval_data = data[int(l*0.8):int(l*0.9)]
     test_data = data[int(l*0.9):]
-    
+    train_data = train_data[0:4000]
+
     train_data = np.asarray(train_data)#convertToArray(train_data)
     eval_data = np.asarray(eval_data)#convertToArray(eval_data)
     test_data = np.asarray(test_data)#convertToArray(test_data)
-    
     return train_data, eval_data, test_data
 
 def convertToArray(list2DToConvert):
@@ -173,10 +179,13 @@ def model3(allStatements, allThreeLabels, statementLengths):
     
     
     train_statements, eval_statements, test_statements= splitData(allStatements)
+    print(len(train_statements))
     train_labels, eval_labels, test_labels = splitData(allThreeLabels)
     train_lengths, eval_lengths, test_lengths = splitData(statementLengths)
     print("train")
-    print(train_statements[0])
+    print(len(train_statements))
+    print(len(train_labels))
+    print(len(train_lengths))
     tensors_to_log = {}
     
     logging_hook = tf.train.LoggingTensorHook(
@@ -184,14 +193,14 @@ def model3(allStatements, allThreeLabels, statementLengths):
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
         x={"x": train_statements, "lengths": train_lengths},
         y=train_labels,
-        batch_size=1,
+        batch_size=40,
         num_epochs=None,
-        shuffle=True)
+        shuffle=False)
     
-    sentimentClassifier.train(
-        input_fn=train_input_fn,
-        steps=10000,
-        hooks=[logging_hook])
+    #sentimentClassifier.train(
+        #input_fn=train_input_fn,
+        #steps=10000,
+        #hooks=[logging_hook])
     
     eval_input_fn = tf.estimator.inputs.numpy_input_fn(
         x={"x": eval_statements, "lengths": eval_lengths},
@@ -223,9 +232,12 @@ def main(unused):
     #nltk.download("movie_reviews")
     s = [['unk']]
     w2v.build_vocab(sentences=s, min_count=1, update=True)
+    w2v.wv.syn0[w2v.wv.vocab['unk'].index] = np.zeros((100)).astype(dtype=np.float32)
     s = [['eos']]
     w2v.build_vocab(sentences=s, min_count=1, update=True)
-    
+    w2v.wv.syn0[w2v.wv.vocab['eos'].index] = np.ones((100)).astype(dtype=np.float32)
+    print(w2v.wv['unk'])
+    print(w2v.wv['eos'])
     global embedding_array
     vocab_size = len(w2v.wv.vocab)
     for i in range(0, vocab_size):
@@ -233,8 +245,7 @@ def main(unused):
         embedding_array.append(w2v.wv[word])
     embedding_array = np.array(embedding_array, np.float32)
     
-    print(embedding_array[0])
-    print(embedding_array.shape)
+
     #print(w2v.wv.vocab["unk"])
     #print(w2v.wv['unk'])
     #w2v.wv.syn0[w2v.vocab['unk'].index] = []
