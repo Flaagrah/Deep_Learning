@@ -25,18 +25,7 @@ def maskDetails(images, first):
     maskInfo = np.zeros((len(images), 4))
     for i in range(0, len(images)):
         img = images[i]
-        if (first==True):
-            #print("img in mask:")
-            print(img.shape)
         maskindices = np.nonzero(img)
-        if (first==True):
-            #print("maskindices")
-            print(maskindices)
-            #print("min maskindices[0]")
-            print(min(maskindices[0]))
-            print(max(maskindices[0]))
-            print(min(maskindices[1]))
-            print(max(maskindices[1]))
             
         minHeight = 0
         maxHeight = 0
@@ -111,7 +100,6 @@ def createInput(isTrainingInput):
     for filename in os.listdir(url):
         imdir = url+filename+'/'+imagesDir
         immasks = url+filename+'/'+masksDir
-        #imagefile = imageio.imread(imdir+os.listdir(imdir)[0])
         img = imread(imdir+os.listdir(imdir)[0])
         allDims.append((img.shape[0], img.shape[1], 3))
         #Drop the 4th dimension if it exists. Only need RGB
@@ -119,11 +107,9 @@ def createInput(isTrainingInput):
             img = img[:, :, 0:3]
         #Add 2nd and 3rd dimension if black and white
         elif len(img.shape) == 2:
-            print("here")
             tmp = np.reshape(img, (img.shape[0], img.shape[1], 1))
             img = np.concatenate((tmp, tmp), axis=2)
             img = np.concatenate((img, tmp), axis=2)
-            print(img.shape)
         
         #Compress image to standard size. (IMAGE_HEIGHT, IMAGE_WIDTH))
         img = compress(img)
@@ -133,7 +119,6 @@ def createInput(isTrainingInput):
         #If it's the training input, also create the labels.
         if isTrainingInput:
             for m in os.listdir(immasks):
-                #mask = imageio.imread(immasks+m)
                 mask = imread(immasks+m)
                 mask = compress(mask)
                 masks.append(mask)
@@ -141,7 +126,6 @@ def createInput(isTrainingInput):
             masksInfo = maskDetails(masks, first)
             trainingLabels = trainLabels(masksInfo)
             flattenedLabels = trainingLabels.flatten()
-            #lambda l: [lab for rows in trainingLabels for columns in rows for lab in column]
             processed = []
             for n in range(0, len(flattenedLabels)):
                 processed.append(flattenedLabels[n])
@@ -153,7 +137,6 @@ def createInput(isTrainingInput):
     if not allLabels == [] :
         l = Normalization.NormalizeWidthHeightForAll(allLabels)
         allLabels = l
-        print("hello")
     
     normalizedImages = np.asarray(allImages).astype(np.float32)
     allDims = np.asarray(allDims).astype(np.int32)

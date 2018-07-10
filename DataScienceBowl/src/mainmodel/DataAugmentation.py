@@ -84,29 +84,25 @@ def returnAugmentationForList(originalInput, originalLabel, originalDims):
         totalLabels = np.append(totalLabels, horiLabel, 0)
         totalDims = np.append(totalDims, np.copy(originalDims), 0)
     
-    #imageio.imwrite('imgBefore.png', np.reshape(horiInput[1], (256, 256, 3)))
     origL = np.reshape(originalInput, (-1,IMAGE_HEIGHT,IMAGE_WIDTH,3))
     for i in range(0, 4):
         vertInput, vertLabel = shift(np.copy(originalInput), np.copy(originalLabel), 0, i)
         totalInput = np.append(totalInput, vertInput, 0)
         totalLabels = np.append(totalLabels, vertLabel, 0)
         totalDims = np.append(totalDims, np.copy(originalDims), 0)
-    #imageio.imwrite('imgAfter.png', np.reshape(vertInput[1], (256, 256, 3)))
-    #print(vertLabel)
+
     #Light and darken the image.
     print(vertInput[0][0][0][1])
     dark = darken(np.copy(originalInput), 0.5)
     totalInput = np.append(totalInput, dark, 0)
     totalLabels = np.append(totalLabels, np.copy(originalLabel), 0)
     totalDims = np.append(totalDims, np.copy(originalDims), 0)
-    #imageio.imwrite('imageDarken.png', np.reshape(np.copy(vertInput[1]), (256, 256, 3)))
     light = lighten(np.copy(originalInput), 0.5)
     totalInput = np.append(totalInput, light, 0)
     totalLabels = np.append(totalLabels, np.copy(originalLabel), 0)
     totalDims = np.append(totalDims, np.copy(originalDims), 0)
     
     return totalInput, totalLabels, totalDims
-    #imageio.imwrite('imageLighten.png', np.reshape(np.copy(vertInput[1]), (256, 256, 3)))
 
 #Compress image to fixed size of IMAGE_HEIGHT, IMAGE_WIDTH
 def compress(img):

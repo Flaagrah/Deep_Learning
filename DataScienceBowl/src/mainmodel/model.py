@@ -32,9 +32,7 @@ def concatenate(branches):
     return array_ops.concat(branches, 3)
 
 def createModel(features, labels, mode):
-    #HEIGHT*WIDTH*4
     input_layer = tensorflow.reshape(features["x"], [-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3])
-    #input_layer = tensorflow.layers.AveragePooling2D((2, 2), strides=(2, 2))(input_layer)
     #Model taken from:
     #https://www.kaggle.com/piotrczapla/tensorflow-u-net-starter-lb-0-34
     c1 = conv2d_3x3(8) (input_layer)
@@ -84,7 +82,6 @@ def createModel(features, labels, mode):
     preds = tensorflow.layers.Dense(units = int( (IMAGE_HEIGHT/BOX_HEIGHT) * (IMAGE_WIDTH/BOX_WIDTH) * 5 ), activation=tensorflow.nn.sigmoid, kernel_initializer=tensorflow.contrib.layers.xavier_initializer() )(dropout)
     predictions = {
         "preds": preds,
-        #"boxes": convertOutput(logits)
         }
     
     if mode == tensorflow.estimator.ModeKeys.PREDICT :
@@ -115,13 +112,9 @@ def createModel(features, labels, mode):
     #Number of terms that are counted (total output size minus x, y, w, h of segments with no bounding box).
     non_zeros = tensorflow.add(num_segments, tensorflow.multiply(num_boxes, 4.0))
     
-    #non_zeros = tensorflow.cast(tensorflow.count_nonzero(full_mask), dtype=tensorflow.float32)
-
     loss = tensorflow.div((tensorflow.reduce_sum(tensorflow.square(terms))), non_zeros, "loss_calc")
-    #loss = tensorflow.reduce_sum(tensorflow.square(terms))
     
     if mode == tensorflow.estimator.ModeKeys.TRAIN:
-        #optimizer = tensorflow.train.GradientDescentOptimizer(learning_rate=1.0)
         optimizer = tensorflow.train.AdamOptimizer(learning_rate=0.0001)
         train_op = optimizer.minimize(
             loss=loss,
@@ -160,13 +153,10 @@ def trainModel(train = False, test = False):
         if not Path('imagesTrainTotal.npy').exists():
             PreProcessing.createInput(True)
         normalizedImages = np.reshape(np.asarray(np.load('imagesTrainTotal.npy')).astype(np.float32), (-1, 256, 256, 3))
-        #normalizedImages = normalizedImages[0:7000, :, :, :]
         print(normalizedImages.shape)
         allLabels = np.reshape(np.asarray(np.load('labelsTrainTotal.npy')).astype(np.float32), (-1, 16,16, 5))
-        #allLabels = allLabels[0:7000, :, :, :]
         print(allLabels.shape)
         allDims = np.reshape(np.asarray(np.load('dimsTrainTotal.npy')).astype(np.int32), (-1, 3))
-        #allDims = allDims[0:7000, :]
         print(allDims.shape)
             
             
@@ -191,22 +181,8 @@ def trainModel(train = False, test = False):
             PreProcessing.createInput(False)
         
         allTestImages = np.reshape(np.asarray(np.load('imagesTest.npy')).astype(np.float32), (-1, 256, 256, 3))
-        print(allTestImages.shape)
         allTestImageNames = np.reshape(np.asarray(np.load('imagesNamesTest.npy')), (-1))
-        print(allTestImageNames.shape)
-        print(allTestImageNames[0])
         allTestDims = np.reshape(np.asarray(np.load('dimsTest.npy')).astype(np.int32), (-1, 3))
-        print(allTestDims.shape)
-        #for filename in os.listdir(testURL):
-         #   print(filename)
-          #  imdir = testURL+filename+'/'+imagesDir
-           # img = imread(imdir+os.listdir(imdir)[0])
-            #allTestDims.append(img.shape)
-            #if (img.shape[2] == 4):
-            #    img = img[:, :, 0:3]
-            #allTestImageNames.append(os.listdir(imdir)[0])
-            #img = compress(img)
-            #allTestImages.append(img)
         
         test_input_fn = tensorflow.estimator.inputs.numpy_input_fn(
            x={"x": np.asarray(allTestImages).astype(np.float32)},
@@ -223,13 +199,7 @@ def trainModel(train = False, test = False):
         names, encoding = PostProcessing.generateOutput(allTestImageNames, unNormal, allTestDims)
 
         df = pandas.read_csv('stage2_sample_submission_final.csv')
-        #sub = pandas.DataFrame()
 
-        #sub['ImageId'] = names
-        #sub['EncodedPixels'] = encoding
-        
-        #for index, row in df.iterrows():
-           #imgID = row['ImageId']
         for i in range(0, len(names)):
            df.loc[i] = [names[i], encoding[i]]
             
@@ -245,26 +215,15 @@ def main(unused_argv):
     
     images = np.reshape(images, (-1, IMAGE_HEIGHT*IMAGE_WIDTH*3))
     
-    #json.dump(images.tolist(), codecs.open('images.json', 'w', encoding='utf-8'), separators=(',', ':'), indent=4)
-    #json.dump(labels.tolist(), codecs.open('labels.json', 'w', encoding='utf-8'), separators=(',', ':'), indent=4)
-    #json.dump(dims.tolist(), codecs.open('dims.json', 'w', encoding='utf-8'), separators=(',', ':'), indent=4)
-    
-    #images = np.reshape(images, (-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3))
-
-   # df.to_csv(path_or_buf = 'data.csv', header=True, index=True)
-    #trainModel(True, False)
     trainModel(False, True)
 
-    #imageio.imwrite('img.png', images[1])
     filenames = os.listdir(PreProcessing.dataURL)
     rUnNorm = np.reshape(labels, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
     rUnNorm = Normalization.unNormalizeAll(rUnNorm)
     rUnNorm = np.reshape(rUnNorm, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
     normed = Normalization.NormalizeWidthHeightForAll(rUnNorm)
     normed = np.reshape(normed, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
-    #rUnNorm = np.reshape(rUnNorm, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
 
-    #test()
     img = [1.0, 0.4, 0.3, 0.2, 0.1,
            1.0, 0.5, 0.5, 0.1, 0.1,
            0.0, 0.0, 0.0, 0.0, 0.0,
@@ -612,18 +571,13 @@ def main(unused_argv):
     testDims = []
     testDims.append((1024, 512))
     testDims.append((1024, 512))
-    testDims.append((512, 256))
-    print(PostProcessing.processResults(img3))
-    #print(generateOutput(['ImageName', 'ImageName2', 'ImageName3'], imgs, testDims))
-    
+    testDims.append((512, 256))    
     
     
     
     
 
-print("hello")
 tensorflow.logging.set_verbosity(tensorflow.logging.INFO)
-print("hello")
 tensorflow.app.run(main)
 
             
