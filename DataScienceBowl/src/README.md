@@ -1,3 +1,9 @@
+Disclaimer:
+
+	Set workspace to <workspace>/DataScienceBowl/src. This program trains a model indefinitely. In order to create a submission file,
+	Change the line in model.py to trainModel(False, True) and run it. To continue training, change it to trainModel(True, False).
+	Testing creates a submission.csv file under the src folder which can be submitted to https://www.kaggle.com/c/data-science-bowl-2018.
+
 Introduction:
 
 	This project is based on the Kaggle competition "Data Science Bowl 2018". The goal of the competition was to detect nuclei within images.

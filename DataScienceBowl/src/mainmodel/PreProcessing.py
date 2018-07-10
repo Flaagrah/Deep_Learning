@@ -14,11 +14,11 @@ from mainmodel import IMAGE_WIDTH as IMAGE_WIDTH
 
 
 
-dataURL = '../Data/stage1_train/'
+dataURL = 'Data/stage1_train/'
 imagesDir = 'images/'
 masksDir = 'masks/'
-compressionLoc = '../Data/tmp.png'
-testURL = '../Data/stage2_test/stage2_test_final/'
+compressionLoc = 'Data/tmp.png'
+testURL = 'Data/stage2_test/stage2_test_final/'
 
 #Given the compressed pixels of the mask, get the relevant details of the mask.
 def maskDetails(images, first):
@@ -50,15 +50,15 @@ def maskDetails(images, first):
     return maskInfo
 
 def compress(img):
-    img = resize(img, (BOX_HEIGHT, BOX_WIDTH))
+    img = resize(img, (IMAGE_HEIGHT, IMAGE_WIDTH))
     return img
 
 #Given a list of masks and the coordinates, returns a bounding box for each yolo box.
 #This represents the y label for a single image example in the dataset.
 #Return labels for segment in format [flag, y, x, h, w]
 def trainLabels(maskInfo):
-    boxRows = int(BOX_HEIGHT/BOX_HEIGHT)
-    boxColumns = int(BOX_WIDTH/BOX_WIDTH)
+    boxRows = int(IMAGE_HEIGHT/BOX_HEIGHT)
+    boxColumns = int(IMAGE_WIDTH/BOX_WIDTH)
     boxes = np.zeros((boxRows, boxColumns, 5))
     for h in range(0, boxRows):
         minH = h*BOX_HEIGHT
@@ -143,9 +143,9 @@ def createInput(isTrainingInput):
     allLabels = np.asarray(allLabels).astype(np.float32)
     #Save training input in file
     if (isTrainingInput):
-        imgFileName = 'imagesTrain'
-        labFileName = 'labelsTrain'
-        dimFileName = 'dimsTrain' 
+        imgFileName = 'Data/imagesTrain'
+        labFileName = 'Data/labelsTrain'
+        dimFileName = 'Data/dimsTrain' 
         np.save(imgFileName, normalizedImages)
         np.save(dimFileName, allDims)
         np.save(labFileName, allLabels)
@@ -155,9 +155,9 @@ def createInput(isTrainingInput):
         np.save(dimFileName+'Total', totalDims)
         np.save(labFileName+'Total', totalLabels)
     else:
-        imgFileName = 'imagesTest'
-        nameFileName = 'imagesNamesTest'
-        dimFileName = 'dimsTest'
+        imgFileName = 'Data/imagesTest'
+        nameFileName = 'Data/imagesNamesTest'
+        dimFileName = 'Data/dimsTest'
         np.save(imgFileName, normalizedImages)
         np.save(dimFileName, allDims)
         np.save(nameFileName, allImageNames)

@@ -15,11 +15,11 @@ def lighten(flattenedInput, factor):
     newInput = flattenedInput + (space*factor)
     return newInput
 
-#Shift the image.  
+#Shift the image.
 def shift(flattenedInput, flattenedLabel, shiftHorizontal, shiftVertical):
     print()
-    rows = IMAGE_HEIGHT/BOX_HEIGHT
-    columns = IMAGE_WIDTH/BOX_WIDTH
+    rows = int(IMAGE_HEIGHT/BOX_HEIGHT)
+    columns = int(IMAGE_WIDTH/BOX_WIDTH)
     
     label = np.reshape(flattenedLabel, (-1,rows,columns,5))
     input = np.reshape(flattenedInput, (-1,IMAGE_HEIGHT,IMAGE_WIDTH,3))
@@ -34,46 +34,46 @@ def shift(flattenedInput, flattenedLabel, shiftHorizontal, shiftVertical):
         #Fill left most space with zeros.
         label[:, :, 0:shiftHorizontal, :] = np.full((label.shape[0], rows, shiftHorizontal, 5), 0)
         #Shift Input right.
-        shiftInput = input[:, :, 0:(IMAGE_WIDTH-BOX_WIDTH*shiftHorizontal), :]
-        input[:, :, BOX_WIDTH*shiftHorizontal:IMAGE_WIDTH, :] = shiftInput
+        shiftInput = input[:, :, 0:(IMAGE_WIDTH-int(BOX_WIDTH*shiftHorizontal)), :]
+        input[:, :, int(BOX_WIDTH*shiftHorizontal):IMAGE_WIDTH, :] = shiftInput
         #Fill leftmost space with random colours.
-        input[:, :, 0:BOX_WIDTH*shiftHorizontal, :] = np.random.rand(input.shape[0], IMAGE_HEIGHT, BOX_WIDTH*shiftHorizontal, 3)
+        input[:, :, 0:int(BOX_WIDTH*shiftHorizontal), :] = np.random.rand(input.shape[0], IMAGE_HEIGHT, int(BOX_WIDTH*shiftHorizontal), 3)
         
     elif shiftHorizontal < 0:
         #Shift image left.
         shiftLabel = label[:, :, (shiftHorizontal*-1):columns, :]
         label[:, :, 0:(columns+shiftHorizontal), :] = shiftLabel
         #Fill rightmost space with zeros.
-        label[:, :, (columns+shiftHorizontal):columns, :] = np.full((label.shape[0], rows, (shiftHorizontal*-1), 5), 0)
+        label[:, :, (columns+shiftHorizontal):columns, :] = np.full((label.shape[0], rows, int(shiftHorizontal*-1), 5), 0)
         #Shift image left.
-        shiftInput = input[:, :, BOX_WIDTH*(-1*shiftHorizontal):IMAGE_WIDTH, :]
-        input[:, :, 0:(IMAGE_WIDTH+BOX_WIDTH*shiftHorizontal), :] = shiftInput
+        shiftInput = input[:, :, int(BOX_WIDTH*(-1*shiftHorizontal)):IMAGE_WIDTH, :]
+        input[:, :, 0:(IMAGE_WIDTH+int(BOX_WIDTH*shiftHorizontal)), :] = shiftInput
         #Fill rightmost space with random colours.
-        input[:, :, (IMAGE_WIDTH+BOX_WIDTH*shiftHorizontal):IMAGE_WIDTH, :] = np.random.rand(input.shape[0], IMAGE_HEIGHT, -BOX_WIDTH*shiftHorizontal, 3)
+        input[:, :, (IMAGE_WIDTH+int(BOX_WIDTH*shiftHorizontal)):IMAGE_WIDTH, :] = np.random.rand(input.shape[0], IMAGE_HEIGHT, int(-BOX_WIDTH*shiftHorizontal), 3)
     
     #Shift down
     if shiftVertical > 0:
         shiftLabel = label[:, 0:rows-shiftVertical, :, :]
         label[:, shiftVertical:rows, :, :] = shiftLabel
         label[:, 0:shiftVertical, :, :] = np.full((label.shape[0], shiftVertical, columns, 5), 0)
-        shiftInput = input[:, 0:(IMAGE_HEIGHT-BOX_HEIGHT*shiftVertical), :, :]
-        input[:, BOX_HEIGHT*shiftVertical:IMAGE_HEIGHT, :, :] = shiftInput
-        input[:, 0:BOX_HEIGHT*shiftVertical, :, :] = np.random.rand(input.shape[0], BOX_HEIGHT*shiftVertical, IMAGE_WIDTH, 3)
+        shiftInput = input[:, 0:(IMAGE_HEIGHT-int(BOX_HEIGHT*shiftVertical)), :, :]
+        input[:, int(BOX_HEIGHT*shiftVertical):IMAGE_HEIGHT, :, :] = shiftInput
+        input[:, 0:int(BOX_HEIGHT*shiftVertical), :, :] = np.random.rand(input.shape[0], int(BOX_HEIGHT*shiftVertical), IMAGE_WIDTH, 3)
     #Shift up
     elif shiftVertical < 0:
         shiftLabel = label[:, (shiftVertical*-1):rows, :, :]
         label[:, 0:(rows+shiftVertical), :, :] = shiftLabel
         label[:, (rows+shiftVertical):rows, :, :] = np.full((label.shape[0], (shiftVertical*-1), columns, 5), 0)
         shiftInput = input[:, BOX_HEIGHT*(-1*shiftVertical):IMAGE_HEIGHT, :, :]
-        input[:, 0:(IMAGE_HEIGHT+BOX_HEIGHT*shiftVertical), :, :] = shiftInput
-        input[:, (IMAGE_HEIGHT+BOX_HEIGHT*shiftVertical):IMAGE_HEIGHT, :, :] = np.random.rand(input.shape[0], -BOX_HEIGHT*shiftVertical, IMAGE_HEIGHT, 3)
+        input[:, 0:(IMAGE_HEIGHT+int(BOX_HEIGHT*shiftVertical)), :, :] = shiftInput
+        input[:, (IMAGE_HEIGHT+int(BOX_HEIGHT*shiftVertical)):IMAGE_HEIGHT, :, :] = np.random.rand(input.shape[0], int(-BOX_HEIGHT*shiftVertical), IMAGE_WIDTH, 3)
         
     return input, label
 
 #Creates a data augmentation.   
 def returnAugmentationForList(originalInput, originalLabel, originalDims):
     originalInput = np.reshape(originalInput, (-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3))
-    originalLabel = np.reshape(originalLabel, (-1, IMAGE_HEIGHT/BOX_HEIGHT, IMAGE_WIDTH/BOX_WIDTH, 5))
+    originalLabel = np.reshape(originalLabel, (-1, int(IMAGE_HEIGHT/BOX_HEIGHT), int(IMAGE_WIDTH/BOX_WIDTH), 5))
     totalInput = np.copy(originalInput)
     totalLabels = np.copy(originalLabel)
     totalDims = np.copy(originalDims)
