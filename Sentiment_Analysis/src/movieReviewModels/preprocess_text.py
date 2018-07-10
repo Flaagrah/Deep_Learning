@@ -7,12 +7,11 @@ from movieReviewModels import embedding_size
 def preProcessInput(passages):
     #Split the words into an array
     passages = [passage.split(' ') for passage in passages]
-    #Remove punctuation
-    print(passages[0])
-    #indices = [[word if (word in w2v.wv.vocab) else 'unk' for word in passage] for passage in passages]
+    #Get the index of every word in the review. Unk represents words that are not in the vocabulary
     indices = [[w2v.wv.vocab[word].index if (word in w2v.wv.vocab) else w2v.wv.vocab['unk'].index for word in passage] for passage in passages]
     unknownIndex = w2v.wv.vocab['eos'].index
     
+    #Pad the entry with eos tokens so that the length is 100. Clip each review to length 100 if already greater than 100.
     lengths = []
     for i in range(0, len(indices)):
         l = len(indices[i])
@@ -25,12 +24,8 @@ def preProcessInput(passages):
         lengths.append(len(indices[i]))
     
     indices = np.array(indices)
-    lengths = np.array(lengths)
-    print("indices")
-    print(np.array(indices).shape)  
+    lengths = np.array(lengths)  
     return indices, lengths
 
-def preProcess3Labels(labelList):
-    #newLabels = np.eye(3)[np.array(labelList).astype(np.int32)]
-    
+def preProcess3Labels(labelList):    
     return np.array(labelList).astype(np.int32)
