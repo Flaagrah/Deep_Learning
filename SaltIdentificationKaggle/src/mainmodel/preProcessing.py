@@ -42,4 +42,5 @@ def createTrainingInput():
         #Drop the 4th dimension. https://www.kaggle.com/c/data-science-bowl-2018/discussion/47750
         #Maybe need to keep it later.
     #Normalize the labels.
+    print(len(allImages))
     return np.asarray(allImages).astype(np.float32), np.asarray(allLabels).astype(np.float32)
