@@ -9,14 +9,22 @@ trainImagesFolder = "../trainImages/"
 trainMasksFolder = "../trainMasks/"
 testImagesFolder = "../testImages/"
 
+
+def shapeImage(img):
+    img = img[:, :, 0]
+    img = np.reshape(img, (IMAGE_HEIGHT, IMAGE_WIDTH))
+    return np.divide(img, 256.0).astype(np.float32)
+
+
 def createTestInput():
-    allImages = []
+    allImages = {}
     for filename in os.listdir(testImagesFolder):
         imdir = testImagesFolder+filename
-        img = imread(imdir)
-        print("test img dim:")
-        print(img.shape)
-        allImages.append(img)
+        img = imread(imdir).astype(np.float32)
+        img = shapeImage(img)
+        name = filename[0:(len(filename)-4)]
+        allImages[name] = img
+    return allImages
 
 #Creates the input for the model. In format [-1, IMAGE_HEIGHT, IMAGE_WIDTH, 3]
 def createTrainingInput():
@@ -30,9 +38,7 @@ def createTrainingInput():
         mask = imread(immask).astype(np.float32)
         
         #Assumption is that each pixel ranges from white to black.
-        img = img[:, :, 0]
-        img = np.reshape(img, (IMAGE_HEIGHT, IMAGE_WIDTH))
-        img = np.divide(img, 256.0).astype(np.float32)
+        img = shapeImage(img)
         mask = [[0.0 if (element == 0.0) else 1.0 for element in row] for row in mask]
         mask = np.asarray(mask).astype(np.float32)
         

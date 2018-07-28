@@ -92,12 +92,8 @@ def createModel(features, labels, mode):
     c15 = tf.layers.Flatten()(c15)
     dense = tf.layers.Dense(units = 1280)(c15)
     dropout = tf.layers.Dropout(rate=0.2)(dense)
-    
-    def binary(x):
-        activation = tf.divide(tf.add(tf.sign(x), 1), 2)
-        return activation
         
-    preds = tf.layers.Dense(units = IMAGE_HEIGHT*IMAGE_WIDTH, activation=tf.nn.sigmoid, kernel_initializer=tf.contrib.layers.xavier_initializer() )(dropout)
+    preds = tf.layers.Dense(units = int(IMAGE_HEIGHT*IMAGE_WIDTH), activation=tf.nn.sigmoid, kernel_initializer=tf.contrib.layers.xavier_initializer() )(dropout)
     predictions = {
         "preds": preds,
         }
@@ -127,7 +123,7 @@ def createModel(features, labels, mode):
         
     eval_metric_ops = {
         "accuracy": tf.metrics.accuracy(
-        labels=labels, predictions=predictions["logits"])}
+        labels=labels, predictions=predictions["preds"])}
     return tf.estimator.EstimatorSpec(
         mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
 
@@ -140,24 +136,28 @@ def testModel():
         model_fn = createModel, model_dir=moddir)
     
     testImages = preProcessing.createTestInput()
-    
     test_input_fn = tf.estimator.inputs.numpy_input_fn(
-       x={"x": np.asarray(testImages).astype(np.float32)},
+       x={"x": np.array(list(testImages.values())).astype(np.float32)},
+        batch_size=batchSize,
         shuffle=False)
     preds = nucleus_detector.predict(test_input_fn, checkpoint_path=None)
     predList = []
     for single_prediction in preds:
         predList.append(list(single_prediction['preds']))
     predList = np.asarray(predList)
-    print(predList)
-    names, encoding = postProcessing.generateOutput(testImages)
+    processed = postProcessing.processResults(predList)
+    encoding = postProcessing.generateOutput(processed)
+    print(predList.shape)
 
-    df = pandas.read_csv('stage2_sample_submission_final.csv')
-
-    for i in range(0, len(names)):
-       df.loc[i] = [names[i], encoding[i]]
+    df = pandas.read_csv('../files/sample_submission.csv')
+    print(testImages)
+    for i in range(0, predList.shape[0]):
+        nextName = df.loc[i][0]
+        ind = list(testImages.keys()).index(nextName)
+        enc = encoding[ind]
+        df.loc[i] = [nextName, enc]
         
-    df.to_csv(path_or_buf = 'submission.csv',
+    df.to_csv(path_or_buf = '../files/submission.csv',
                              header=True,
                              index=False)
     
@@ -181,9 +181,12 @@ def trainModel():
        input_fn=train_input_fn,
        steps=200000,
        hooks=[logging_hook])
+    
+    
 
 def main(unused_argv): 
-    trainModel()
+    #trainModel()
+    testModel()
     
 tf.logging.set_verbosity(tf.logging.INFO)
 tf.app.run(main)
