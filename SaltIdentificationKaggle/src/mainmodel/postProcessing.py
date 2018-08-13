@@ -13,7 +13,7 @@ def processResults(output):
         result = [[0.0 if (element < 0.5) else 1.0 for element in row] for row in mask]
         allResults.append(result)
     
-    results = np.array(allResults).astype(np.float32)
+    results = np.array(allResults).astype(np.float64)
     return np.reshape(results, (-1, IMAGE_HEIGHT*IMAGE_WIDTH))
 
 def generateOutput(masks):
